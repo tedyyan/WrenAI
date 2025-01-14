@@ -379,7 +379,7 @@ class AskPipeline(Eval):
         # )
         # deploy_model(mdl, _indexing)
         self.pipe_components = pipe_components
-        self.project_id = str(uuid.uuid4())
+        self.project_id = str(uuid.uuid4().int >> 65)
         self.indexing_service_var = self.indexing_service()
         self.mdl_str_var = json.dumps(mdl)
         self.ask_service_var = self.ask_service()
@@ -412,7 +412,7 @@ class AskPipeline(Eval):
             project_id = self.project_id,
 
         )
-        ask_request.query_id = str(uuid.uuid4())
+        ask_request.query_id = str(uuid.uuid4().int >> 65)
         await self.ask_service_var.ask(ask_request, service_metadata=self.service_metadata)
         # getting ask result
         ask_result_response = self.ask_service_var.get_ask_result(

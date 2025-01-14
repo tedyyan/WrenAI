@@ -88,11 +88,11 @@ def write_prediction(
 def obtain_commit_hash() -> str:
     repo = Repo(search_parent_directories=True)
 
-    # if repo.untracked_files:
-    #     raise Exception("There are untracked files in the repository.")
+    if repo.untracked_files:
+        raise Exception("There are untracked files in the repository.")
 
-    # if repo.index.diff(None):
-    #     raise Exception("There are uncommitted changes in the repository.")
+    if repo.index.diff(None):
+        raise Exception("There are uncommitted changes in the repository.")
 
     branch = repo.active_branch
     return f"{repo.head.commit}@{branch.name}"

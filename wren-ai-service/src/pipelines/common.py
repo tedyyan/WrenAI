@@ -166,7 +166,7 @@ class SQLGenPostProcessor:
 
             if no_error:
                 status, _, addition = await self._engine.execute_sql(
-                    quoted_sql, session, project_id=project_id
+                    quoted_sql, session, project_id=int(project_id)
                 )
 
                 if status:
