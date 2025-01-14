@@ -1,7 +1,6 @@
 import { ChartType } from '@/apollo/client/graphql/__types__';
-import { isNil, cloneDeep, uniq, sortBy, omit } from 'lodash';
+import { isNil, cloneDeep, uniq, sortBy, omit, isNumber } from 'lodash';
 import { Config, TopLevelSpec } from 'vega-lite';
-import { PositionFieldDef } from 'vega-lite/build/src/channeldef';
 
 enum MarkType {
   ARC = 'arc',
@@ -76,12 +75,14 @@ type ParamsSpec = {
 
 type ChartOptions = {
   width?: number | string;
-  height?: number;
+  height?: number | string;
   stack?: 'zero' | 'normalize';
   point?: boolean;
   donutInner?: number | false;
   categoriesLimit?: number;
   isShowTopCategories?: boolean;
+  isHideLegend?: boolean;
+  isHideTitle?: boolean;
 };
 
 const config: Config = {
@@ -90,18 +91,23 @@ const config: Config = {
   padding: {
     top: 30,
     bottom: 20,
+    left: 0,
+    right: 0,
   },
   title: {
     color: COLOR.GRAY_10,
     fontSize: 14,
   },
   axis: {
+    labelPadding: 0,
+    labelOffset: 0,
     labelFontSize: 10,
     gridColor: COLOR.GRAY_5,
     titleColor: COLOR.GRAY_9,
     labelColor: COLOR.GRAY_8,
     labelFont: ' Roboto, Arial, Noto Sans, sans-serif',
   },
+  axisX: { labelAngle: -45 },
   line: {
     color: DEFAULT_COLOR,
   },
@@ -111,7 +117,7 @@ const config: Config = {
   legend: {
     symbolLimit: 15,
     columns: 1,
-    labelFontSize: 12,
+    labelFontSize: 10,
     labelColor: COLOR.GRAY_8,
     titleColor: COLOR.GRAY_9,
     titleFontSize: 14,
@@ -119,14 +125,19 @@ const config: Config = {
   range: {
     category: colorScheme,
     ordinal: colorScheme,
+    diverging: colorScheme,
+    symbol: colorScheme,
+    heatmap: colorScheme,
+    ramp: colorScheme,
   },
-  point: { size: 60 },
+  point: { size: 60, color: DEFAULT_COLOR },
 };
 
 export default class ChartSpecHandler {
   public config: Config;
   public options: ChartOptions;
   public $schema: string;
+  public title: string;
   public data: DataSpec;
   public encoding: EncodingSpec;
   public mark: MarkSpec;
@@ -150,7 +161,7 @@ export default class ChartSpecHandler {
     // default options
     this.options = {
       width: isNil(options?.width) ? 'container' : options.width,
-      height: isNil(options?.height) ? 280 : options.height,
+      height: isNil(options?.height) ? 'container' : options.height,
       stack: isNil(options?.stack) ? 'zero' : options.stack,
       point: isNil(options?.point) ? true : options.point,
       donutInner: isNil(options?.donutInner) ? 60 : options.donutInner,
@@ -160,6 +171,8 @@ export default class ChartSpecHandler {
       isShowTopCategories: isNil(options?.isShowTopCategories)
         ? false
         : options?.isShowTopCategories,
+      isHideLegend: isNil(options?.isHideLegend) ? false : options.isHideLegend,
+      isHideTitle: isNil(options?.isHideTitle) ? false : options.isHideTitle,
     };
 
     // avoid mutating the original spec
@@ -185,8 +198,20 @@ export default class ChartSpecHandler {
       } as any;
     }
 
+    if (this.options.isHideLegend) {
+      this.encoding.color = {
+        ...this.encoding.color,
+        legend: null,
+      } as any;
+    }
+
+    if (this.options.isHideTitle) {
+      this.title = null;
+    }
+
     return {
       $schema: this.$schema,
+      title: this.title,
       data: this.data,
       mark: this.mark,
       width: this.options.width,
@@ -199,6 +224,7 @@ export default class ChartSpecHandler {
 
   private parseSpec(spec: TopLevelSpec) {
     this.$schema = spec.$schema;
+    this.title = spec.title as string;
 
     if ('mark' in spec) {
       const mark =
@@ -230,7 +256,6 @@ export default class ChartSpecHandler {
 
   private addEncoding(encoding: EncodingSpec) {
     this.encoding = encoding;
-    const { x, y } = this.getAxisDomain();
 
     // fill color by x field if AI not provide color(category) field
     if (isNil(this.encoding.color)) {
@@ -249,26 +274,6 @@ export default class ChartSpecHandler {
 
     // handle scale on bar chart
     if (this.mark.type === MarkType.BAR) {
-      if (y) {
-        this.encoding.y = {
-          ...this.encoding.y,
-          scale: {
-            domain: y,
-            nice: false,
-          },
-        };
-      }
-
-      if (x) {
-        this.encoding.x = {
-          ...this.encoding.x,
-          scale: {
-            domain: x,
-            nice: false,
-          },
-        };
-      }
-
       if ('stack' in this.encoding.y) {
         this.encoding.y.stack = this.options.stack;
       }
@@ -285,45 +290,6 @@ export default class ChartSpecHandler {
     }
 
     this.addHoverHighlight(this.encoding);
-  }
-
-  private getAxisDomain() {
-    const xField = this.encoding.x as PositionFieldDef<any>;
-    const yField = this.encoding.y as PositionFieldDef<any>;
-    const calculateMaxDomain = (field: PositionFieldDef<any>) => {
-      if (field?.type !== 'quantitative') return null;
-      const fieldValue = field.field;
-      const values = (this.data as any).values.map((d) => d[fieldValue]);
-
-      const maxValue = Math.max(...values);
-
-      // Get the magnitude (e.g., 1, 10, 100, 1000)
-      const magnitude = Math.pow(10, Math.floor(Math.log10(maxValue)));
-
-      // Get number between 1-10
-      const normalizedValue = maxValue / magnitude;
-      let niceNumber;
-
-      if (normalizedValue <= 1.2) niceNumber = 1.2;
-      else if (normalizedValue <= 1.5) niceNumber = 1.5;
-      else if (normalizedValue <= 2) niceNumber = 2;
-      else if (normalizedValue <= 2.5) niceNumber = 2.5;
-      else if (normalizedValue <= 3) niceNumber = 3;
-      else if (normalizedValue <= 4) niceNumber = 4;
-      else if (normalizedValue <= 5) niceNumber = 5;
-      else if (normalizedValue <= 7.5) niceNumber = 7.5;
-      else if (normalizedValue <= 8) niceNumber = 8;
-      else niceNumber = 10;
-
-      const domainMax = niceNumber * magnitude;
-      return [0, domainMax];
-    };
-    const xDomain = calculateMaxDomain(xField);
-    const yDomain = calculateMaxDomain(yField);
-    return {
-      x: xDomain,
-      y: yDomain,
-    };
   }
 
   private addHoverHighlight(encoding: EncodingSpec) {
@@ -352,7 +318,7 @@ export default class ChartSpecHandler {
     }
 
     // basic color properties
-    let colorProperties = {
+    const colorProperties = {
       title,
       field: category?.field,
       type: category?.type,
@@ -360,11 +326,6 @@ export default class ChartSpecHandler {
         range: colorScheme,
       },
     } as any;
-    if (this.mark.type === MarkType.LINE) {
-      colorProperties = {
-        value: DEFAULT_COLOR,
-      };
-    }
 
     this.encoding.color = {
       ...colorProperties,
@@ -376,29 +337,45 @@ export default class ChartSpecHandler {
   }
 
   private filterTopCategories(encoding: EncodingSpec) {
-    const nominalAxis = ['xOffset', 'color', 'x', 'y'].find(
+    const nominalKeys = ['xOffset', 'color', 'x', 'y'].filter(
       (axis) => encoding[axis]?.type === 'nominal',
     );
-    if (!nominalAxis) return;
-    const quantitativeAxis = ['theta', 'x', 'y'].find(
+    const quantitativeKeys = ['theta', 'x', 'y'].filter(
       (axis) => encoding[axis]?.type === 'quantitative',
     );
-    if (!quantitativeAxis) return;
+    if (!nominalKeys.length || !quantitativeKeys.length) return;
 
     const clonedValues = cloneDeep((this.data as any).values);
 
+    const quantitativeAxis = quantitativeKeys[0];
     const quanAxis = encoding[quantitativeAxis] as any;
-    const nomiAxis = encoding[nominalAxis] as any;
-    const sortedValues = sortBy(clonedValues, (val) => val[quanAxis.field]);
-    const categoryValues = sortedValues.map((val) => val[nomiAxis.field]);
-    const uniqueCategoryValues = uniq(categoryValues);
-    const topCategories = uniqueCategoryValues.slice(
-      0,
-      this.options.categoriesLimit,
-    );
+    const sortedValues = sortBy(clonedValues, (val) => {
+      const value = val[quanAxis.field];
+      return isNumber(value) ? -value : 0;
+    });
 
+    // nominal values probably have different length, so we need to filter them
+    const filteredNominals = [];
+    for (const nominalKey of nominalKeys) {
+      const nomiAxis = encoding[nominalKey] as any;
+      if (filteredNominals.some((val) => val.field === nomiAxis.field)) {
+        continue;
+      }
+      const nominalValues = sortedValues.map((val) => val[nomiAxis.field]);
+      const uniqueNominalValues = uniq(nominalValues);
+      const topNominalValues = uniqueNominalValues.slice(
+        0,
+        this.options.categoriesLimit,
+      );
+      filteredNominals.push({
+        field: nomiAxis.field,
+        values: topNominalValues,
+      });
+    }
     const values = clonedValues.filter((val) =>
-      topCategories.includes(val[nomiAxis.field]),
+      filteredNominals.every((nominal) =>
+        nominal.values.includes(val[nominal.field]),
+      ),
     );
     return { values };
   }

@@ -10,39 +10,32 @@ from haystack.components.builders.prompt_builder import PromptBuilder
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 from langfuse.decorators import observe
-from pydantic import BaseModel
 
 from src.core.pipeline import BasicPipeline
 from src.core.provider import LLMProvider
 from src.pipelines.generation.utils.chart import (
-    AreaChartSchema,
-    BarChartSchema,
     ChartDataPreprocessor,
-    GroupedBarChartSchema,
-    LineChartSchema,
-    PieChartSchema,
-    StackedBarChartSchema,
+    ChartGenerationResults,
     chart_generation_instructions,
 )
-from src.utils import async_timer, timer
 
 logger = logging.getLogger("wren-ai-service")
 
 chart_generation_system_prompt = f"""
 ### TASK ###
 
-You are a data analyst great at visualizing data using vega-lite! Given the data using the 'columns' formatted JSON from pandas.DataFrame APIs, 
-you need to generate vega-lite schema in JSON and provide suitable chart; we will also give you the question and sql to understand the data.
-Besides, you need to give a concise and easy-to-understand reasoning to describe why you provide such vega-lite schema and a within 20 words description of the chart.
+You are a data analyst great at visualizing data using vega-lite! Given the user's question, SQL and data, you need to generate vega-lite schema in JSON and provide suitable chart type.
+Besides, you need to give a concise and easy-to-understand reasoning within 20 words to describe why you provide such vega-lite schema.
 
 {chart_generation_instructions}
 
 ### OUTPUT FORMAT ###
 
-Please provide your chain of thought reasoning and the vega-lite schema in JSON format.
+Please provide your chain of thought reasoning, chart type and the vega-lite schema in JSON format.
 
 {{
     "reasoning": <REASON_TO_CHOOSE_THE_SCHEMA_IN_STRING_FORMATTED_IN_LANGUAGE_PROVIDED_BY_USER>,
+    "chart_type": "line" | "multi_line" | "bar" | "pie" | "grouped_bar" | "stacked_bar" | "area" | "",
     "chart_schema": <VEGA_LITE_JSON_SCHEMA>
 }}
 """
@@ -71,13 +64,19 @@ class ChartGenerationPostProcessor:
         try:
             generation_result = orjson.loads(replies[0])
             reasoning = generation_result.get("reasoning", "")
+            chart_type = generation_result.get("chart_type", "")
             if chart_schema := generation_result.get("chart_schema", {}):
+                # sometimes the chart_schema is still in string format
+                if isinstance(chart_schema, str):
+                    chart_schema = orjson.loads(chart_schema)
+
                 validate(chart_schema, schema=vega_schema)
                 chart_schema["data"]["values"] = []
                 return {
                     "results": {
                         "chart_schema": chart_schema,
                         "reasoning": reasoning,
+                        "chart_type": chart_type,
                     }
                 }
 
@@ -85,6 +84,7 @@ class ChartGenerationPostProcessor:
                 "results": {
                     "chart_schema": {},
                     "reasoning": reasoning,
+                    "chart_type": chart_type,
                 }
             }
         except ValidationError as e:
@@ -94,6 +94,7 @@ class ChartGenerationPostProcessor:
                 "results": {
                     "chart_schema": {},
                     "reasoning": "",
+                    "chart_type": "",
                 }
             }
         except Exception as e:
@@ -103,12 +104,12 @@ class ChartGenerationPostProcessor:
                 "results": {
                     "chart_schema": {},
                     "reasoning": "",
+                    "chart_type": "",
                 }
             }
 
 
 ## Start of Pipeline
-@timer
 @observe(capture_input=False)
 def preprocess_data(
     data: Dict[str, Any], chart_data_preprocessor: ChartDataPreprocessor
@@ -116,7 +117,6 @@ def preprocess_data(
     return chart_data_preprocessor.run(data)
 
 
-@timer
 @observe(capture_input=False)
 def prompt(
     query: str,
@@ -135,13 +135,11 @@ def prompt(
     )
 
 
-@async_timer
 @observe(as_type="generation", capture_input=False)
 async def generate_chart(prompt: dict, generator: Any) -> dict:
     return await generator(prompt=prompt.get("prompt"))
 
 
-@timer
 @observe(capture_input=False)
 def post_process(
     generate_chart: dict,
@@ -152,23 +150,11 @@ def post_process(
 
 
 ## End of Pipeline
-class ChartGenerationResults(BaseModel):
-    reasoning: str
-    chart_schema: (
-        LineChartSchema
-        | BarChartSchema
-        | PieChartSchema
-        | GroupedBarChartSchema
-        | StackedBarChartSchema
-        | AreaChartSchema
-    )
-
-
 CHART_GENERATION_MODEL_KWARGS = {
     "response_format": {
         "type": "json_schema",
         "json_schema": {
-            "name": "matched_schema",
+            "name": "chart_generation_schema",
             "schema": ChartGenerationResults.model_json_schema(),
         },
     }
@@ -204,7 +190,6 @@ class ChartGeneration(BasicPipeline):
             AsyncDriver({}, sys.modules[__name__], result_builder=base.DictResult())
         )
 
-    @async_timer
     @observe(name="Chart Generation")
     async def run(
         self,

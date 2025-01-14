@@ -10,21 +10,21 @@ from langfuse.decorators import observe
 
 from src.core.pipeline import BasicPipeline
 from src.core.provider import LLMProvider
-from src.utils import async_timer, timer
 
 logger = logging.getLogger("wren-ai-service")
 
 sql_to_answer_system_prompt = """
 ### TASK
 
-You are a data analyst that great at answering user's questions based on the data, sql so that even non technical users can easily understand.
+You are a data analyst that great at answering non-technical user's questions based on the data, sql so that even non technical users can easily understand.
 Please answer the user's question in concise and clear manner in Markdown format.
 
 ### INSTRUCTIONS
 
 1. Read the user's question and understand the user's intention.
 2. Read the sql and understand the data.
-4. Generate a consice and clear answer in string format and a reasoning process in string format to the user's question based on the data, sql.
+3. Make sure the answer is aimed for non-technical users, so don't mention any technical terms such as SQL syntax.
+4. Generate a concise and clear answer in string format to answerthe user's question based on the data and sql.
 5. If answer is in list format, only list top few examples, and tell users there are more results omitted.
 6. Answer must be in the same language user specified.
 
@@ -45,7 +45,6 @@ Please think step by step and answer the user's question.
 
 
 ## Start of Pipeline
-@timer
 @observe(capture_input=False)
 def prompt(
     query: str,
@@ -62,7 +61,6 @@ def prompt(
     )
 
 
-@async_timer
 @observe(as_type="generation", capture_input=False)
 async def generate_answer(prompt: dict, generator: Any, query_id: str) -> dict:
     return await generator(prompt=prompt.get("prompt"), query_id=query_id)
@@ -131,7 +129,6 @@ class SQLAnswer(BasicPipeline):
             except TimeoutError:
                 break
 
-    @async_timer
     @observe(name="SQL Answer Generation")
     async def run(
         self,

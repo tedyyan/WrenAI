@@ -6,7 +6,7 @@ from langfuse.decorators import observe
 from pydantic import BaseModel
 
 from src.core.pipeline import BasicPipeline
-from src.utils import async_timer, trace_metadata
+from src.utils import trace_metadata
 from src.web.v1.services import Configuration
 
 logger = logging.getLogger("wren-ai-service")
@@ -14,7 +14,9 @@ logger = logging.getLogger("wren-ai-service")
 
 # POST /v1/chart-adjustments
 class ChartAdjustmentOption(BaseModel):
-    chart_type: Literal["bar", "grouped_bar", "line", "pie", "stacked_bar", "area"]
+    chart_type: Literal[
+        "bar", "grouped_bar", "line", "pie", "stacked_bar", "area", "multi_line"
+    ]
     x_axis: Optional[str] = None
     y_axis: Optional[str] = None
     x_offset: Optional[str] = None
@@ -75,6 +77,9 @@ class ChartAdjustmentResultRequest(BaseModel):
 
 class ChartAdjustmentResult(BaseModel):
     reasoning: str
+    chart_type: Literal[
+        "line", "bar", "pie", "grouped_bar", "stacked_bar", "area", "multi_line", ""
+    ]  # empty string for no chart
     chart_schema: dict
 
 
@@ -106,7 +111,6 @@ class ChartAdjustmentService:
 
         return False
 
-    @async_timer
     @observe(name="Adjust Chart")
     @trace_metadata
     async def chart_adjustment(

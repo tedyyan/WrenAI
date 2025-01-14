@@ -1,19 +1,9 @@
-import asyncio
-import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-import aiohttp
-import orjson
-import pytz
-from haystack import component
+from haystack import Document, component
 
-from src.core.engine import (
-    Engine,
-    add_quotes,
-    clean_generation_result,
-)
 from src.core.pipeline import BasicPipeline
+
 from src.web.v1.services import Configuration
 
 logger = logging.getLogger("wren-ai-service")
@@ -500,8 +490,23 @@ def dry_run_pipeline(pipeline_cls: BasicPipeline, pipeline_name: str, **kwargs):
 
     pipe_components = generate_components(settings.components)
     pipeline = pipeline_cls(**pipe_components[pipeline_name])
-    init_langfuse()
+    init_langfuse(settings)
 
     async_validate(lambda: pipeline.run(**kwargs))
 
     langfuse_context.flush()
+
+
+@component
+class ScoreFilter:
+    @component.output_types(
+        documents=List[Document],
+    )
+    def run(self, documents: List[Document], score: float = 0.9):
+        return {
+            "documents": sorted(
+                filter(lambda document: document.score >= score, documents),
+                key=lambda document: document.score,
+                reverse=True,
+            )
+        }

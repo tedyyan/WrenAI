@@ -17,7 +17,8 @@
       cursor: pointer;
       width: 28px;
       height: 28px;
-      opacity: 0.2;
+      opacity: 0.4;
+      color: @gray-8;
       transition: all 0.4s ease-in;
 
       &:hover {
@@ -30,10 +31,20 @@
     }
   }
 
+  &--no-actions {
+    padding: 0;
+    .vega-embed .chart-wrapper {
+      padding-top: 0 !important;
+    }
+    .vega-embed summary {
+      display: none;
+    }
+  }
+
   .vega-embed {
     &:hover {
       summary {
-        opacity: 0.2 !important;
+        opacity: 0.4 !important;
       }
     }
 
@@ -43,6 +54,7 @@
       box-shadow: none;
       transition: all 0.4s ease-in;
       color: @gray-8;
+      opacity: 0.4 !important;
 
       &:hover {
         opacity: 1 !important;

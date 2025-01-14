@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import dynamic from 'next/dynamic';
 import styled from 'styled-components';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Form, Button, Skeleton, Modal } from 'antd';
+import { Alert, Form, Button, Skeleton, Modal, message } from 'antd';
 import { attachLoading } from '@/utils/helper';
 import { ReloadOutlined } from '@ant-design/icons';
 import BasicProperties from '@/components/chart/properties/BasicProperties';
@@ -19,10 +19,11 @@ import {
 import { usePreviewDataMutation } from '@/apollo/client/graphql/home.generated';
 import { isEmpty, isEqual } from 'lodash';
 import {
-  convertToChartType,
   getChartSpecFieldTitleMap,
   getChartSpecOptionValues,
 } from '@/components/chart/handler';
+import { useCreateDashboardItemMutation } from '@/apollo/client/graphql/dashboard.generated';
+import { DashboardItemType } from '@/apollo/server/repositories';
 
 const Chart = dynamic(() => import('@/components/chart'), {
   ssr: false,
@@ -95,11 +96,19 @@ export default function ChartAnswer(props: Props) {
   const [newValues, setNewValues] = useState(null);
 
   const [form] = Form.useForm();
+  const chartType = Form.useWatch('chartType', form);
   const { chartDetail } = threadResponse;
-  const { error, status } = chartDetail || {};
+  const { error, status, adjustment } = chartDetail || {};
 
   const [previewData, previewDataResult] = usePreviewDataMutation({
     onError: (error) => console.error(error),
+  });
+
+  const [createDashboardItem] = useCreateDashboardItemMutation({
+    onError: (error) => console.error(error),
+    onCompleted: () => {
+      message.success('Successfully pinned chart to dashboard.');
+    },
   });
 
   // initial trigger when render
@@ -118,16 +127,6 @@ export default function ChartAnswer(props: Props) {
     return chartDetail.chartSchema;
   }, [chartDetail]);
 
-  const chartType = useMemo(() => {
-    if (!chartDetail?.chartSchema?.mark) return null;
-    const mark = chartDetail.chartSchema?.mark;
-    const encoding = chartDetail.chartSchema?.encoding;
-    return convertToChartType(
-      typeof mark === 'string' ? mark : mark.type,
-      encoding,
-    );
-  }, [chartSpec]);
-
   const chartOptionValues = useMemo(() => {
     return getChartSpecOptionValues(chartSpec);
   }, [chartSpec]);
@@ -141,7 +140,7 @@ export default function ChartAnswer(props: Props) {
   }, [chartOptionValues]);
 
   const isAdjusted = useMemo(() => {
-    return newValues !== null ? !isEqual(chartOptionValues, newValues) : false;
+    return newValues !== null && !isEqual(chartOptionValues, newValues);
   }, [chartOptionValues, newValues]);
 
   const dataValues = useMemo(() => {
@@ -162,7 +161,7 @@ export default function ChartAnswer(props: Props) {
   const loading =
     previewDataResult.loading || !getIsChartFinished(status) || regenerating;
 
-  const DynamicProperties = getDynamicProperties(chartType);
+  const DynamicProperties = getDynamicProperties(chartType as ChartType);
 
   const onFormChange = () => {
     setNewValues(form.getFieldsValue());
@@ -190,6 +189,23 @@ export default function ChartAnswer(props: Props) {
     setIsEditMode(!isEditMode);
   };
 
+  const onPin = () => {
+    Modal.confirm({
+      title: 'Are you sure you want to pin this chart to the dashboard?',
+      okText: 'Save',
+      onOk: async () =>
+        await createDashboardItem({
+          variables: {
+            data: {
+              // DashboardItemType is compatible with ChartType
+              itemType: chartType as unknown as DashboardItemType,
+              responseId: threadResponse.id,
+            },
+          },
+        }),
+    });
+  };
+
   const onResetAdjustment = () => {
     setNewValues(null);
     form.resetFields();
@@ -203,13 +219,13 @@ export default function ChartAnswer(props: Props) {
     onResetState();
   };
 
-  const regeneratedContent = !!dataValues.length ? (
+  const regenerateBtn = (
     <div className="text-center mt-4">
-      <Button icon={<ReloadOutlined />} onClick={onRegenerate}>
+      <Button icon={<ReloadOutlined />} onClick={onReload}>
         Regenerate
       </Button>
     </div>
-  ) : null;
+  );
 
   if (error) {
     return (
@@ -220,10 +236,12 @@ export default function ChartAnswer(props: Props) {
           type="error"
           showIcon
         />
-        {regeneratedContent}
+        {regenerateBtn}
       </div>
     );
   }
+
+  const chartRegenerateBtn = adjustment ? regenerateBtn : null;
 
   return (
     <StyledSkeleton
@@ -279,10 +297,11 @@ export default function ChartAnswer(props: Props) {
               values={dataValues}
               onEdit={onEdit}
               onReload={onReload}
+              onPin={onPin}
             />
           </ChartWrapper>
         ) : (
-          regeneratedContent
+          chartRegenerateBtn
         )}
       </div>
     </StyledSkeleton>

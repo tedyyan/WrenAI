@@ -67,6 +67,8 @@ wren-ui/e2e/e2e.config.json
 wren-ui/.next
 wren-ui/out
 
+wren-ui/.yarn/install-state.gz
+
 ## production
 wren-ui/build
 
@@ -77,6 +79,7 @@ yarn-error.log*
 
 ## local env files
 .env*.local
+.env*
 .env.ai
 
 ## vercel

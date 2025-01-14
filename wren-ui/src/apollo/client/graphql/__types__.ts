@@ -103,6 +103,11 @@ export type CreateCalculatedFieldInput = {
   name: Scalars['String'];
 };
 
+export type CreateDashboardItemInput = {
+  itemType: DashboardItemType;
+  responseId: Scalars['Int'];
+};
+
 export type CreateModelInput = {
   fields: Array<Scalars['String']>;
   primaryKey?: InputMaybe<Scalars['String']>;
@@ -144,6 +149,44 @@ export type CustomFieldInput = {
   name: Scalars['String'];
 };
 
+export type DashboardItem = {
+  __typename?: 'DashboardItem';
+  dashboardId: Scalars['Int'];
+  detail: DashboardItemDetail;
+  id: Scalars['Int'];
+  layout: DashboardItemLayout;
+  type: DashboardItemType;
+};
+
+export type DashboardItemDetail = {
+  __typename?: 'DashboardItemDetail';
+  chartSchema?: Maybe<Scalars['JSON']>;
+  sql: Scalars['String'];
+};
+
+export type DashboardItemLayout = {
+  __typename?: 'DashboardItemLayout';
+  h: Scalars['Int'];
+  w: Scalars['Int'];
+  x: Scalars['Int'];
+  y: Scalars['Int'];
+};
+
+export enum DashboardItemType {
+  AREA = 'AREA',
+  BAR = 'BAR',
+  GROUPED_BAR = 'GROUPED_BAR',
+  LINE = 'LINE',
+  NUMBER = 'NUMBER',
+  PIE = 'PIE',
+  STACKED_BAR = 'STACKED_BAR',
+  TABLE = 'TABLE'
+}
+
+export type DashboardItemWhereInput = {
+  id: Scalars['Int'];
+};
+
 export type DataSource = {
   __typename?: 'DataSource';
   properties: Scalars['JSON'];
@@ -166,6 +209,10 @@ export enum DataSourceName {
   SNOWFLAKE = 'SNOWFLAKE',
   TRINO = 'TRINO'
 }
+
+export type DeleteDashboardItemInput = {
+  itemId: Scalars['Int'];
+};
 
 export type DetailStep = {
   __typename?: 'DetailStep';
@@ -257,8 +304,6 @@ export type DetailedThread = {
   __typename?: 'DetailedThread';
   id: Scalars['Int'];
   responses: Array<ThreadResponse>;
-  /** @deprecated Doesn't seem to be reasonable to put a sql in a thread */
-  sql: Scalars['String'];
 };
 
 export type Diagram = {
@@ -417,6 +462,14 @@ export type InstantRecommendedQuestionsInput = {
   previousQuestions?: InputMaybe<Array<Scalars['String']>>;
 };
 
+export type ItemLayoutInput = {
+  h: Scalars['Int'];
+  itemId: Scalars['Int'];
+  w: Scalars['Int'];
+  x: Scalars['Int'];
+  y: Scalars['Int'];
+};
+
 export type LearningRecord = {
   __typename?: 'LearningRecord';
   paths: Array<Scalars['String']>;
@@ -458,6 +511,7 @@ export type Mutation = {
   cancelAskingTask: Scalars['Boolean'];
   createAskingTask: Task;
   createCalculatedField: Scalars['JSON'];
+  createDashboardItem: DashboardItem;
   createInstantRecommendedQuestions: Task;
   createModel: Scalars['JSON'];
   createRelation: Scalars['JSON'];
@@ -465,6 +519,7 @@ export type Mutation = {
   createThreadResponse: ThreadResponse;
   createView: ViewInfo;
   deleteCalculatedField: Scalars['Boolean'];
+  deleteDashboardItem: Scalars['Boolean'];
   deleteModel: Scalars['Boolean'];
   deleteRelation: Scalars['Boolean'];
   deleteThread: Scalars['Boolean'];
@@ -477,6 +532,7 @@ export type Mutation = {
   generateThreadResponseChart: ThreadResponse;
   previewBreakdownData: Scalars['JSON'];
   previewData: Scalars['JSON'];
+  previewItemSQL: Scalars['JSON'];
   previewModelData: Scalars['JSON'];
   previewSql: Scalars['JSON'];
   previewViewData: Scalars['JSON'];
@@ -490,6 +546,7 @@ export type Mutation = {
   triggerDataSourceDetection: Scalars['Boolean'];
   updateCalculatedField: Scalars['JSON'];
   updateCurrentProject: Scalars['Boolean'];
+  updateDashboardItemLayouts: Array<DashboardItem>;
   updateDataSource: DataSource;
   updateModel: Scalars['JSON'];
   updateModelMetadata: Scalars['Boolean'];
@@ -519,6 +576,11 @@ export type MutationCreateAskingTaskArgs = {
 
 export type MutationCreateCalculatedFieldArgs = {
   data: CreateCalculatedFieldInput;
+};
+
+
+export type MutationCreateDashboardItemArgs = {
+  data: CreateDashboardItemInput;
 };
 
 
@@ -555,6 +617,11 @@ export type MutationCreateViewArgs = {
 
 export type MutationDeleteCalculatedFieldArgs = {
   where?: InputMaybe<UpdateCalculatedFieldWhere>;
+};
+
+
+export type MutationDeleteDashboardItemArgs = {
+  where: DashboardItemWhereInput;
 };
 
 
@@ -613,6 +680,11 @@ export type MutationPreviewDataArgs = {
 };
 
 
+export type MutationPreviewItemSqlArgs = {
+  data: PreviewItemSqlInput;
+};
+
+
 export type MutationPreviewModelDataArgs = {
   where: WhereIdInput;
 };
@@ -666,6 +738,11 @@ export type MutationUpdateCalculatedFieldArgs = {
 
 export type MutationUpdateCurrentProjectArgs = {
   data: UpdateCurrentProjectInput;
+};
+
+
+export type MutationUpdateDashboardItemLayoutsArgs = {
+  data: UpdateDashboardItemLayoutsInput;
 };
 
 
@@ -751,6 +828,11 @@ export type PreviewDataInput = {
   stepIndex?: InputMaybe<Scalars['Int']>;
 };
 
+export type PreviewItemSqlInput = {
+  itemId: Scalars['Int'];
+  limit?: InputMaybe<Scalars['Int']>;
+};
+
 export type PreviewSqlDataInput = {
   dryRun?: InputMaybe<Scalars['Boolean']>;
   limit?: InputMaybe<Scalars['Int']>;
@@ -780,6 +862,7 @@ export type Query = {
   __typename?: 'Query';
   askingTask: AskingTask;
   autoGenerateRelation: Array<RecommendRelations>;
+  dashboardItems: Array<DashboardItem>;
   diagram: Diagram;
   getMDL: GetMdlResult;
   getProjectRecommendationQuestions: RecommendedQuestionsTask;
@@ -997,8 +1080,6 @@ export type Task = {
 export type Thread = {
   __typename?: 'Thread';
   id: Scalars['Int'];
-  /** @deprecated Doesn't seem to be reasonable to put a sql in a thread */
-  sql: Scalars['String'];
   summary: Scalars['String'];
 };
 
@@ -1044,6 +1125,7 @@ export type ThreadResponseBreakdownDetail = {
 
 export type ThreadResponseChartDetail = {
   __typename?: 'ThreadResponseChartDetail';
+  adjustment?: Maybe<Scalars['Boolean']>;
   chartSchema?: Maybe<Scalars['JSON']>;
   description?: Maybe<Scalars['String']>;
   error?: Maybe<Error>;
@@ -1084,6 +1166,10 @@ export type UpdateColumnMetadataInput = {
 
 export type UpdateCurrentProjectInput = {
   language: ProjectLanguage;
+};
+
+export type UpdateDashboardItemLayoutsInput = {
+  layouts: Array<ItemLayoutInput>;
 };
 
 export type UpdateDataSourceInput = {

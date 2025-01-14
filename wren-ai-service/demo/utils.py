@@ -64,7 +64,7 @@ def _update_wren_engine_configs(configs: list[dict]):
     assert response.status_code == 200
 
 
-def rerun_wren_engine(mdl_json: Dict, dataset_type: str, dataset: str):
+def rerun_wren_engine(mdl_json: Dict, dataset_type: str, dataset: Optional[str] = None):
     assert dataset_type in DATA_SOURCES
 
     SOURCE = dataset_type
@@ -118,7 +118,6 @@ def get_mdl_json(database_name: str):
     return mdl_json
 
 
-@st.cache_data
 def get_data_from_wren_engine(
     sql: str,
     dataset_type: str,
@@ -139,7 +138,7 @@ def get_data_from_wren_engine(
             },
         )
 
-        assert response.status_code == 200, response.json()
+        assert response.status_code == 200, response.text
 
         data = response.json()
 
@@ -162,7 +161,7 @@ def get_data_from_wren_engine(
             },
         )
 
-        assert response.status_code == 200, response.json()
+        assert response.status_code == 200, response.text
 
         data = response.json()
 
@@ -431,6 +430,7 @@ def on_click_adjust_chart(
     query: str,
     sql: str,
     chart_schema: dict,
+    chart_type: str,
     language: str,
     reasoning: str,
     dataset_type: str,
@@ -441,6 +441,7 @@ def on_click_adjust_chart(
         query,
         sql,
         chart_schema,
+        chart_type,
         language,
         reasoning,
         dataset_type,
@@ -659,7 +660,6 @@ def display_sql_answer(query_id: str):
         placeholder.markdown(markdown_content)
 
 
-@st.cache_data
 def get_sql_answer(
     query: str,
     sql: str,
@@ -708,7 +708,6 @@ def get_sql_answer(
         )
 
 
-@st.cache_data
 def ask_details():
     asks_details_response = requests.post(
         f"{WREN_AI_SERVICE_BASE_URL}/v1/ask-details",
@@ -805,7 +804,6 @@ def sql_regeneration(sql_regeneration_data: dict):
         return None
 
 
-@st.cache_data
 def fill_vega_lite_values(vega_lite_schema: dict, df: pd.DataFrame) -> dict:
     """Fill Vega-Lite schema values from pandas DataFrame based on x/y encodings.
 
@@ -842,7 +840,6 @@ def fill_vega_lite_values(vega_lite_schema: dict, df: pd.DataFrame) -> dict:
     return schema
 
 
-@st.cache_data
 def generate_chart(
     query: str,
     sql: str,
@@ -893,7 +890,6 @@ def generate_chart(
     return chart_response
 
 
-@st.cache_data
 def adjust_chart(
     query: str,
     sql: str,
@@ -1026,8 +1022,9 @@ def show_sql_regeneration_results_dialog(
             sqls_with_cte.append(f"{step['cte_name']} AS ( {step['sql']} )")
 
 
-def show_original_chart(chart_schema: dict, reasoning: str):
+def show_original_chart(chart_schema: dict, reasoning: str, chart_type: str):
     st.markdown("### Original")
+    st.markdown(f"#### Chart Type: {chart_type}")
     st.markdown("#### Reasoning for making this chart")
     st.markdown(f"{reasoning}")
     st.markdown("#### Vega-Lite Schema")
@@ -1041,6 +1038,7 @@ def show_chart_adjustment_dialog(
     query: str,
     sql: str,
     chart_schema: dict,
+    chart_type: str,
     language: str,
     reasoning: str,
     dataset_type: str,
@@ -1087,7 +1085,7 @@ def show_chart_adjustment_dialog(
         language="sql",
     )
 
-    show_original_chart(chart_schema, reasoning)
+    show_original_chart(chart_schema, reasoning, chart_type)
 
     if adjust_submit_button:
         adjustment_option = {
@@ -1110,6 +1108,8 @@ def show_chart_adjustment_dialog(
         )
         if adjust_chart_result := adjust_chart_response.get("response"):
             st.markdown("### Adjusted")
+            if chart_type := adjust_chart_result["chart_type"]:
+                st.markdown(f"#### Chart Type: {chart_type}")
             if reasoning := adjust_chart_result["reasoning"]:
                 st.markdown("#### Reasoning for making this chart")
                 st.markdown(f"{reasoning}")

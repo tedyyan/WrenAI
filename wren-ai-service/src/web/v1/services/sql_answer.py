@@ -7,7 +7,7 @@ from langfuse.decorators import observe
 from pydantic import BaseModel
 
 from src.core.pipeline import BasicPipeline
-from src.utils import async_timer, trace_metadata
+from src.utils import trace_metadata
 from src.web.v1.services import Configuration, SSEEvent
 
 logger = logging.getLogger("wren-ai-service")
@@ -19,8 +19,8 @@ class SqlAnswerRequest(BaseModel):
     query: str
     sql: str
     sql_data: Dict
+    project_id: Optional[str] = None
     thread_id: Optional[str] = None
-    user_id: Optional[str] = None
     configurations: Optional[Configuration] = Configuration()
 
     @property
@@ -63,7 +63,6 @@ class SqlAnswerService:
             maxsize=maxsize, ttl=ttl
         )
 
-    @async_timer
     @observe(name="SQL Answer")
     @trace_metadata
     async def sql_answer(

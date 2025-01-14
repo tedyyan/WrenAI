@@ -684,6 +684,7 @@ export const typeDefs = gql`
     error: Error
     description: String
     chartSchema: JSON
+    adjustment: Boolean
   }
 
   type ThreadResponse {
@@ -700,20 +701,12 @@ export const typeDefs = gql`
   # Thread only consists of basic information of a thread
   type Thread {
     id: Int!
-    sql: String!
-      @deprecated(
-        reason: "Doesn't seem to be reasonable to put a sql in a thread"
-      )
     summary: String!
   }
 
   # Detailed thread consists of thread and thread responses
   type DetailedThread {
     id: Int!
-    sql: String!
-      @deprecated(
-        reason: "Doesn't seem to be reasonable to put a sql in a thread"
-      )
     responses: [ThreadResponse!]!
   }
 
@@ -799,6 +792,68 @@ export const typeDefs = gql`
     path: String!
   }
 
+  # Dashboard
+  enum DashboardItemType {
+    BAR
+    PIE
+    LINE
+    AREA
+    GROUPED_BAR
+    STACKED_BAR
+    TABLE
+    NUMBER
+  }
+
+  input DashboardItemWhereInput {
+    id: Int!
+  }
+
+  input CreateDashboardItemInput {
+    itemType: DashboardItemType!
+    responseId: Int!
+  }
+
+  input ItemLayoutInput {
+    itemId: Int!
+    x: Int!
+    y: Int!
+    w: Int!
+    h: Int!
+  }
+
+  input UpdateDashboardItemLayoutsInput {
+    layouts: [ItemLayoutInput!]!
+  }
+
+  input DeleteDashboardItemInput {
+    itemId: Int!
+  }
+
+  input PreviewItemSQLInput {
+    itemId: Int!
+    limit: Int
+  }
+
+  type DashboardItemLayout {
+    x: Int!
+    y: Int!
+    w: Int!
+    h: Int!
+  }
+
+  type DashboardItemDetail {
+    sql: String!
+    chartSchema: JSON
+  }
+
+  type DashboardItem {
+    id: Int!
+    dashboardId: Int!
+    type: DashboardItemType!
+    layout: DashboardItemLayout!
+    detail: DashboardItemDetail!
+  }
+
   # Query and Mutation
   type Query {
     # On Boarding Steps
@@ -838,6 +893,9 @@ export const typeDefs = gql`
     getThreadRecommendationQuestions(threadId: Int!): RecommendedQuestionsTask!
     getProjectRecommendationQuestions: RecommendedQuestionsTask!
     instantRecommendedQuestions(taskId: String!): RecommendedQuestionsTask!
+
+    # Dashboard
+    dashboardItems: [DashboardItem!]!
   }
 
   type Mutation {
@@ -940,5 +998,13 @@ export const typeDefs = gql`
     createInstantRecommendedQuestions(
       data: InstantRecommendedQuestionsInput!
     ): Task!
+
+    # Dashboard
+    updateDashboardItemLayouts(
+      data: UpdateDashboardItemLayoutsInput!
+    ): [DashboardItem!]!
+    createDashboardItem(data: CreateDashboardItemInput!): DashboardItem!
+    deleteDashboardItem(where: DashboardItemWhereInput!): Boolean!
+    previewItemSQL(data: PreviewItemSQLInput!): JSON!
   }
 `;

@@ -32,8 +32,8 @@ Endpoints:
        "query": "user's question",
        "sql": "SELECT * FROM table_name WHERE condition",      # Actual SQL statement
        "sql_data": <dictionary>,                                   # Preprocessed SQL data
+       "project_id": "unique-project-id",                        # Optional project identifier for tracking
        "thread_id": "unique-thread-id",                        # Optional thread identifier for tracking
-       "user_id": "user-id"                                   # Optional user identifier for tracking
      }
    - Response: SqlAnswerResponse
      {
