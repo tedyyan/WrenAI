@@ -195,7 +195,7 @@ if __name__ == "__main__":
         pipe_components=pipe_components,
     )
 
-    predictions = pipe.predict([dataset["eval_dataset"][0]])
+    predictions = pipe.predict(dataset["eval_dataset"])
     meta["expected_batch_size"] = meta["query_count"] * pipe.candidate_size
     meta["actual_batch_size"] = len(predictions) - meta["query_count"]
 

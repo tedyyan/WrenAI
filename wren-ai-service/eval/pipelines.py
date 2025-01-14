@@ -206,10 +206,10 @@ class RetrievalPipeline(Eval):
         super().__init__(meta)
 
         document_store_provider.get_store(recreate_index=True)
-        _indexing = indexing.Indexing(
-            embedder_provider=embedder_provider,
-            document_store_provider=document_store_provider,
-        )
+        # _indexing = indexing.Indexing(
+        #     embedder_provider=embedder_provider,
+        #     document_store_provider=document_store_provider,
+        # )
         # deploy_model(mdl, _indexing)
 
         self._retrieval = retrieval.Retrieval(
