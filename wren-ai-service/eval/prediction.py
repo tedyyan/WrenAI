@@ -175,7 +175,7 @@ if __name__ == "__main__":
 
     dotenv.load_dotenv()
     utils.load_env_vars()
-    utils.init_langfuse()
+    utils.init_langfuse(settings)
 
     dataset = parse_toml(path)
 
