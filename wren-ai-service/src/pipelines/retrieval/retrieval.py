@@ -220,33 +220,56 @@ def check_using_db_schemas_without_pruning(
     allow_using_db_schemas_without_pruning: bool,
 ) -> dict:
     retrieval_results = []
+    has_calculated_field = False
+    has_metric = False
 
     for table_schema in construct_db_schemas:
         if table_schema["type"] == "TABLE":
+            ddl, _has_calculated_field = build_table_ddl(table_schema)
             retrieval_results.append(
-                build_table_ddl(
-                    table_schema,
-                )
+                {
+                    "table_name": table_schema["name"],
+                    "table_ddl": ddl,
+                }
             )
+            has_calculated_field = has_calculated_field or _has_calculated_field
 
     for document in dbschema_retrieval:
         content = ast.literal_eval(document.content)
 
         if content["type"] == "METRIC":
-            retrieval_results.append(_build_metric_ddl(content))
+            retrieval_results.append(
+                {
+                    "table_name": content["name"],
+                    "table_ddl": _build_metric_ddl(content),
+                }
+            )
+            has_metric = True
         elif content["type"] == "VIEW":
-            retrieval_results.append(_build_view_ddl(content))
+            retrieval_results.append(
+                {
+                    "table_name": content["name"],
+                    "table_ddl": _build_view_ddl(content),
+                }
+            )
 
-    _token_count = len(encoding.encode(" ".join(retrieval_results)))
+    table_ddls = [
+        retrieval_result["table_ddl"] for retrieval_result in retrieval_results
+    ]
+    _token_count = len(encoding.encode(" ".join(table_ddls)))
     if _token_count > 100_000 or not allow_using_db_schemas_without_pruning:
         return {
             "db_schemas": [],
             "tokens": _token_count,
+            "has_calculated_field": has_calculated_field,
+            "has_metric": has_metric,
         }
 
     return {
         "db_schemas": retrieval_results,
         "tokens": _token_count,
+        "has_calculated_field": has_calculated_field,
+        "has_metric": has_metric,
     }
 
 
@@ -263,7 +286,7 @@ def prompt(
             "db_schemas token count is greater than 100,000, so we will prune columns"
         )
         db_schemas = [
-            build_table_ddl(construct_db_schema)
+            build_table_ddl(construct_db_schema)[0]
             for construct_db_schema in construct_db_schemas
         ]
 
@@ -296,7 +319,7 @@ def construct_retrieval_results(
     filter_columns_in_tables: dict,
     construct_db_schemas: list[dict],
     dbschema_retrieval: list[Document],
-) -> list[str]:
+) -> dict[str, Any]:
     if filter_columns_in_tables:
         columns_and_tables_needed = orjson.loads(
             filter_columns_in_tables["replies"][0]
@@ -310,17 +333,24 @@ def construct_retrieval_results(
         columns_and_tables_needed = reformated_json
         tables = set(columns_and_tables_needed.keys())
         retrieval_results = []
+        has_calculated_field = False
+        has_metric = False
 
         for table_schema in construct_db_schemas:
             if table_schema["type"] == "TABLE" and table_schema["name"] in tables:
+                ddl, _has_calculated_field = build_table_ddl(
+                    table_schema,
+                    columns=set(
+                        columns_and_tables_needed[table_schema["name"]]["columns"]
+                    ),
+                    tables=tables,
+                )
+                has_calculated_field = has_calculated_field or _has_calculated_field
                 retrieval_results.append(
-                    build_table_ddl(
-                        table_schema,
-                        columns=set(
-                            columns_and_tables_needed[table_schema["name"]]["columns"]
-                        ),
-                        tables=tables,
-                    )
+                    {
+                        "table_name": table_schema["name"],
+                        "table_ddl": ddl,
+                    }
                 )
 
         for document in dbschema_retrieval:
@@ -328,13 +358,36 @@ def construct_retrieval_results(
                 content = ast.literal_eval(document.content)
 
                 if content["type"] == "METRIC":
-                    retrieval_results.append(_build_metric_ddl(content))
+                    retrieval_results.append(
+                        {
+                            "table_name": content["name"],
+                            "table_ddl": _build_metric_ddl(content),
+                        }
+                    )
+                    has_metric = True
                 elif content["type"] == "VIEW":
-                    retrieval_results.append(_build_view_ddl(content))
+                    retrieval_results.append(
+                        {
+                            "table_name": content["name"],
+                            "table_ddl": _build_view_ddl(content),
+                        }
+                    )
+
+        return {
+            "retrieval_results": retrieval_results,
+            "has_calculated_field": has_calculated_field,
+            "has_metric": has_metric,
+        }
     else:
         retrieval_results = check_using_db_schemas_without_pruning["db_schemas"]
 
-    return retrieval_results
+        return {
+            "retrieval_results": retrieval_results,
+            "has_calculated_field": check_using_db_schemas_without_pruning[
+                "has_calculated_field"
+            ],
+            "has_metric": check_using_db_schemas_without_pruning["has_metric"],
+        }
 
 
 ## End of Pipeline
@@ -397,7 +450,6 @@ class Retrieval(BasicPipeline):
         # for the first time, we need to load the encodings
         _model = llm_provider.get_model()
         if "gpt-4o" in _model or "gpt-4o-mini" in _model:
-            allow_using_db_schemas_without_pruning = True
             _encoding = tiktoken.get_encoding("o200k_base")
         else:
             _encoding = tiktoken.get_encoding("cl100k_base")

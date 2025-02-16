@@ -27,6 +27,7 @@ export type AskingTask = {
   __typename?: 'AskingTask';
   candidates: Array<ResultCandidate>;
   error?: Maybe<Error>;
+  intentReasoning?: Maybe<Scalars['String']>;
   status: AskingTaskStatus;
   type?: Maybe<AskingTaskType>;
 };
@@ -41,6 +42,7 @@ export enum AskingTaskStatus {
   FAILED = 'FAILED',
   FINISHED = 'FINISHED',
   GENERATING = 'GENERATING',
+  PLANNING = 'PLANNING',
   SEARCHING = 'SEARCHING',
   STOPPED = 'STOPPED',
   UNDERSTANDING = 'UNDERSTANDING'
@@ -78,6 +80,7 @@ export enum ChartType {
   BAR = 'BAR',
   GROUPED_BAR = 'GROUPED_BAR',
   LINE = 'LINE',
+  MULTI_LINE = 'MULTI_LINE',
   PIE = 'PIE',
   STACKED_BAR = 'STACKED_BAR'
 }
@@ -177,6 +180,7 @@ export enum DashboardItemType {
   BAR = 'BAR',
   GROUPED_BAR = 'GROUPED_BAR',
   LINE = 'LINE',
+  MULTI_LINE = 'MULTI_LINE',
   NUMBER = 'NUMBER',
   PIE = 'PIE',
   STACKED_BAR = 'STACKED_BAR',
@@ -1127,6 +1131,7 @@ export type ThreadResponseChartDetail = {
   __typename?: 'ThreadResponseChartDetail';
   adjustment?: Maybe<Scalars['Boolean']>;
   chartSchema?: Maybe<Scalars['JSON']>;
+  chartType?: Maybe<ChartType>;
   description?: Maybe<Scalars['String']>;
   error?: Maybe<Error>;
   queryId?: Maybe<Scalars['String']>;

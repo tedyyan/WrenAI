@@ -536,6 +536,7 @@ export const typeDefs = gql`
   enum AskingTaskStatus {
     UNDERSTANDING
     SEARCHING
+    PLANNING
     GENERATING
     CORRECTING
     FINISHED
@@ -561,6 +562,7 @@ export const typeDefs = gql`
     BAR
     PIE
     LINE
+    MULTI_LINE
     AREA
     GROUPED_BAR
     STACKED_BAR
@@ -582,6 +584,7 @@ export const typeDefs = gql`
     type: AskingTaskType
     error: Error
     candidates: [ResultCandidate!]!
+    intentReasoning: String
   }
 
   input InstantRecommendedQuestionsInput {
@@ -683,6 +686,7 @@ export const typeDefs = gql`
     status: ChartTaskStatus!
     error: Error
     description: String
+    chartType: ChartType
     chartSchema: JSON
     adjustment: Boolean
   }
@@ -797,6 +801,7 @@ export const typeDefs = gql`
     BAR
     PIE
     LINE
+    MULTI_LINE
     AREA
     GROUPED_BAR
     STACKED_BAR

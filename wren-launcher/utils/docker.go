@@ -24,7 +24,7 @@ import (
 
 const (
 	// please change the version when the version is updated
-	WREN_PRODUCT_VERSION    string = "0.14.0"
+	WREN_PRODUCT_VERSION    string = "0.15.3"
 	DOCKER_COMPOSE_YAML_URL string = "https://raw.githubusercontent.com/Canner/WrenAI/" + WREN_PRODUCT_VERSION + "/docker/docker-compose.yaml"
 	DOCKER_COMPOSE_ENV_URL  string = "https://raw.githubusercontent.com/Canner/WrenAI/" + WREN_PRODUCT_VERSION + "/docker/.env.example"
 	AI_SERVICE_CONFIG_URL   string = "https://raw.githubusercontent.com/Canner/WrenAI/" + WREN_PRODUCT_VERSION + "/docker/config.example.yaml"
@@ -32,6 +32,7 @@ const (
 
 var generationModelToModelName = map[string]string{
 	"gpt-4o-mini": "gpt-4o-mini-2024-07-18",
+	"o3-mini":     "o3-mini-2025-01-31",
 	"gpt-4o":      "gpt-4o-2024-08-06",
 }
 
@@ -158,6 +159,10 @@ func PrepareConfigFileForOpenAI(projectDir string, generationModel string) error
 	// replace the generation model in config.yaml
 	config := string(content)
 	config = strings.ReplaceAll(config, "litellm_llm.gpt-4o-mini-2024-07-18", "litellm_llm."+generationModelToModelName[generationModel])
+
+	// replace allow_using_db_schemas_without_pruning setting
+	// enable this feature since OpenAI models have sufficient context window size to handle full schema
+	config = strings.ReplaceAll(config, "allow_using_db_schemas_without_pruning: false", "allow_using_db_schemas_without_pruning: true")
 
 	// write back to config.yaml
 	err = os.WriteFile(configPath, []byte(config), 0644)
