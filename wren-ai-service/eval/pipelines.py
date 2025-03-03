@@ -32,6 +32,8 @@ from src.pipelines.generation import (
 )
 from src.pipelines.retrieval import historical_question, retrieval
 
+from src.core.pipeline import PipelineComponent
+
 sys.path.append(f"{Path().parent.resolve()}")
 
 from eval import EvalSettings
@@ -44,6 +46,9 @@ from eval.metrics import (
     ExactMatchAccuracy,
     ExecutionAccuracy,
     FaithfulnessMetric,
+    QuestionToReasoningJudge,
+    ReasoningToSqlJudge,
+    SqlSemanticsJudge,
 )
 from eval.utils import (
     engine_config,
@@ -137,7 +142,8 @@ class Eval:
         return [prediction for batch in batches for prediction in batch]
 
     @abstractmethod
-    def _process(self, prediction: dict, **_) -> dict: ...
+    def _process(self, prediction: dict, **_) -> dict:
+        ...
 
     async def _flat(self, prediction: dict, **_) -> dict:
         """
@@ -269,7 +275,9 @@ class GenerationPipeline(Eval):
         )
 
         self._allow_sql_samples = settings.allow_sql_samples
-        self._engine_info = engine_config(mdl, pipe_components)
+        self._engine_info = engine_config(
+            mdl, pipe_components, settings.db_path_for_duckdb
+        )
 
     async def _flat(self, prediction: dict, actual: str) -> dict:
         prediction["actual_output"] = actual
@@ -309,7 +317,11 @@ class GenerationPipeline(Eval):
         ]
 
     @staticmethod
-    def metrics(engine_info: dict, enable_semantics_comparison: bool) -> dict:
+    def metrics(
+        engine_info: dict,
+        enable_semantics_comparison: bool,
+        component: PipelineComponent,
+    ) -> dict:
         return {
             "metrics": [
                 AccuracyMetric(
@@ -321,6 +333,9 @@ class GenerationPipeline(Eval):
                 # this is for spider dataset, rn we temporarily disable it
                 ExactMatchAccuracy(),
                 ExecutionAccuracy(),
+                QuestionToReasoningJudge(**component),
+                ReasoningToSqlJudge(**component),
+                SqlSemanticsJudge(**component),
             ],
             "post_metrics": [],
         }
@@ -411,7 +426,9 @@ class AskPipeline(Eval):
         )
         self._allow_sql_samples = settings.allow_sql_samples
 
-        self._engine_info = engine_config(mdl, pipe_components)
+        self._engine_info = engine_config(
+            mdl, pipe_components, settings.db_path_for_duckdb
+        )
 
     async def _flat(self, prediction: dict, actual: str) -> dict:
         prediction["actual_output"] = actual
@@ -470,7 +487,11 @@ class AskPipeline(Eval):
         ]
 
     @staticmethod
-    def metrics(engine_info: dict, enable_semantics_comparison: bool) -> dict:
+    def metrics(
+        engine_info: dict,
+        enable_semantics_comparison: bool,
+        component: PipelineComponent,
+    ) -> dict:
         return {
             "metrics": [
                 AccuracyMetric(
@@ -485,6 +506,9 @@ class AskPipeline(Eval):
                 # this is for spider dataset, rn we temporarily disable it
                 ExactMatchAccuracy(),
                 ExecutionAccuracy(),
+                QuestionToReasoningJudge(**component),
+                ReasoningToSqlJudge(**component),
+                SqlSemanticsJudge(**component),
             ],
             "post_metrics": [],
         }
@@ -517,13 +541,20 @@ def init(
 
 def metrics_initiator(
     pipeline: str,
-    engine_info: dict,
+    dataset: dict,
+    pipe_components: dict[str, PipelineComponent],
     enable_semantics_comparison: bool = True,
 ) -> dict:
+    engine_info = engine_config(dataset["mdl"], pipe_components)
+    component = pipe_components["evaluation"]
     match pipeline:
         case "retrieval":
             return RetrievalPipeline.metrics(engine_info)
         case "generation":
-            return GenerationPipeline.metrics(engine_info, enable_semantics_comparison)
+            return GenerationPipeline.metrics(
+                engine_info, enable_semantics_comparison, component
+            )
         case "ask":
-            return AskPipeline.metrics(engine_info, enable_semantics_comparison)
+            return AskPipeline.metrics(
+                engine_info, enable_semantics_comparison, component
+            )
