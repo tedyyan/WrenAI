@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import sys
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 from hamilton import base
 from hamilton.async_driver import AsyncDriver
@@ -10,6 +10,7 @@ from langfuse.decorators import observe
 
 from src.core.pipeline import BasicPipeline
 from src.core.provider import LLMProvider
+from src.pipelines.generation.utils.sql import construct_instructions
 from src.web.v1.services import Configuration
 
 logger = logging.getLogger("wren-ai-service")
@@ -25,9 +26,12 @@ You are a helpful data analyst who is great at thinking deeply and reasoning abo
 3. The reasoning plan should be in the language same as the language user provided in the input.
 4. Make sure to consider the current time provided in the input if the user's question is related to the date/time.
 5. Don't include SQL in the reasoning plan.
-6. Each step in the reasoning plan must start with a number, and a reasoning for the step.
-7. If SQL SAMPLES are provided, make sure to consider them in the reasoning plan.
-8. Do not include ```markdown or ``` in the answer.
+6. Each step in the reasoning plan must start with a number, a title(in bold format in markdown), and a reasoning for the step.
+7. If SQL SAMPLES section is provided, make sure to consider them in the reasoning plan.
+8. If INSTRUCTIONS section is provided, please follow them strictly.
+9. Do not include ```markdown or ``` in the answer.
+10. A table name in the reasoning plan must be in this format: `table: <table_name>`.
+11. A column name in the reasoning plan must be in this format: `column: <table_name>.<column_name>`.
 
 ### FINAL ANSWER FORMAT ###
 The final answer must be a reasoning plan in plain Markdown string format
@@ -46,8 +50,12 @@ Question:
 {{sql_sample.question}}
 SQL:
 {{sql_sample.sql}}
-
 {% endfor %}
+{% endif %}
+
+{% if instructions %}
+### INSTRUCTIONS ###
+{{ instructions }}
 {% endif %}
 
 ### QUESTION ###
@@ -63,8 +71,9 @@ Let's think step by step.
 @observe(capture_input=False)
 def prompt(
     query: str,
-    documents: List[str],
-    sql_samples: List[str],
+    documents: list[str],
+    sql_samples: list[dict],
+    instructions: list[dict],
     prompt_builder: PromptBuilder,
     configuration: Configuration | None = Configuration(),
 ) -> dict:
@@ -72,6 +81,10 @@ def prompt(
         query=query,
         documents=documents,
         sql_samples=sql_samples,
+        instructions=construct_instructions(
+            instructions=instructions,
+            configuration=configuration,
+        ),
         current_time=configuration.show_current_time(),
         language=configuration.language,
     )
@@ -92,9 +105,6 @@ def post_process(
 ## End of Pipeline
 
 
-SQL_GENERATION_REASONING_MODEL_KWARGS = {"response_format": {"type": "text"}}
-
-
 class SQLGenerationReasoning(BasicPipeline):
     def __init__(
         self,
@@ -105,7 +115,6 @@ class SQLGenerationReasoning(BasicPipeline):
         self._components = {
             "generator": llm_provider.get_generator(
                 system_prompt=sql_generation_reasoning_system_prompt,
-                generation_kwargs=SQL_GENERATION_REASONING_MODEL_KWARGS,
                 streaming_callback=self._streaming_callback,
             ),
             "prompt_builder": PromptBuilder(
@@ -119,9 +128,8 @@ class SQLGenerationReasoning(BasicPipeline):
 
     def _streaming_callback(self, chunk, query_id):
         if query_id not in self._user_queues:
-            self._user_queues[
-                query_id
-            ] = asyncio.Queue()  # Create a new queue for the user if it doesn't exist
+            self._user_queues[query_id] = asyncio.Queue()
+
         # Put the chunk content into the user's queue
         asyncio.create_task(self._user_queues[query_id].put(chunk.content))
         if chunk.meta.get("finish_reason"):
@@ -132,9 +140,8 @@ class SQLGenerationReasoning(BasicPipeline):
             return await self._user_queues[query_id].get()
 
         if query_id not in self._user_queues:
-            self._user_queues[
-                query_id
-            ] = asyncio.Queue()  # Ensure the user's queue exists
+            self._user_queues[query_id] = asyncio.Queue()
+
         while True:
             try:
                 # Wait for an item from the user's queue
@@ -156,8 +163,9 @@ class SQLGenerationReasoning(BasicPipeline):
     async def run(
         self,
         query: str,
-        contexts: List[str],
-        sql_samples: Optional[List[str]] = None,
+        contexts: list[str],
+        sql_samples: Optional[list[dict]] = None,
+        instructions: Optional[list[str]] = None,
         configuration: Configuration = Configuration(),
         query_id: Optional[str] = None,
     ):
@@ -168,6 +176,7 @@ class SQLGenerationReasoning(BasicPipeline):
                 "query": query,
                 "documents": contexts,
                 "sql_samples": sql_samples or [],
+                "instructions": instructions or [],
                 "configuration": configuration,
                 "query_id": query_id,
                 **self._components,

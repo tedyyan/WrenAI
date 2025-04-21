@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from src.core.pipeline import BasicPipeline
 from src.core.provider import DocumentStoreProvider, EmbedderProvider, LLMProvider
 from src.pipelines.common import build_table_ddl
+from src.pipelines.generation.utils.sql import construct_instructions
 from src.web.v1.services import Configuration
 from src.web.v1.services.ask import AskHistory
 
@@ -21,77 +22,84 @@ logger = logging.getLogger("wren-ai-service")
 
 
 intent_classification_system_prompt = """
-### TASK ###
-You are a great detective, who is great at intent classification.
-First, rephrase the user's question to make it more specific, clear and relevant to the database schema before making the intent classification.
-Second, you need to use rephrased user's question to classify user's intent based on given database schema to one of three conditions: MISLEADING_QUERY, TEXT_TO_SQL, GENERAL. 
-Also you should provide reasoning for the classification clearly and concisely within 20 words.
+### Task ###
+You are an expert detective specializing in intent classification. Combine the user's current question and previous questions to determine their true intent based on the provided database schema. Classify the intent into one of these categories: `MISLEADING_QUERY`, `TEXT_TO_SQL`, `GENERAL`, or `USER_GUIDE`. Additionally, provide a concise reasoning (maximum 20 words) for your classification.
 
-### INSTRUCTIONS ###
-- Steps to rephrase the user's question:
-    - First, try to recognize adjectives in the user's question that are important to the user's intent.
-    - Second, change the adjectives to more specific and clear ones that can be matched to columns in the database schema.
-    - Third, only if the user's question contains time/date related information, take the current time into consideration and add time/date format(such as YYYY-MM-DD) in the rephrased_question output.
-    - Fourth, if the user's input contains previous SQLs, consider them to make the rephrased question.
-- MUST use the rephrased user's question to make the intent classification.
-- MUST put the rephrased user's question in the rephrased_question output.
-- REASONING MUST be within 20 words.
-- If the rephrased user's question is vague and doesn't specify which table or property to analyze, classify it as MISLEADING_QUERY.
-- The reasoning of the intent classification MUST use the same language as the Output Language from the user input.
-- The rephrased user's question MUST use the same language as the Output Language from the user input.
+### Instructions ###
+- **Follow the user's previous questions:** If there are previous questions, try to understand the user's current question as following the previous questions.
+- **Consider Both Inputs:** Combine the user's current question and their previous questions together to identify the user's true intent.
+- **Rephrase Question":** Rewrite follow-up questions into full standalone questions using prior conversation context."
+- **Concise Reasoning:** The reasoning must be clear, concise, and limited to 20 words.
+- **Language Consistency:** Use the same language as specified in the user's output language.
+- **Vague Queries:** If the question is vague or does not related to a table or property from the schema, classify it as `MISLEADING_QUERY`.
 
-### INTENT DEFINITIONS ###
-- TEXT_TO_SQL
-    - When to Use:
-        - Select this category if the user's question is directly related to the given database schema and can be answered by generating an SQL query using that schema.
-        - If the rephrasedd user's question is related to the previous question, and considering them together could be answered by generating an SQL query using that schema.
-    - Characteristics:
-        - The rephrasedd user's question involves specific data retrieval or manipulation that requires SQL.
-        - The rephrasedd user's question references tables, columns, or specific data points within the schema.
-    - Instructions:
-        - MUST include table and column names that should be used in the SQL query according to the database schema in the reasoning output.
-        - MUST include phrases from the user's question that are explicitly related to the database schema in the reasoning output.
-    - Examples:
-        - "What is the total sales for last quarter?"
-        - "Show me all customers who purchased product X."
-        - "List the top 10 products by revenue."
-- MISLEADING_QUERY
-    - When to Use:
-        - If the rephrasedd user's question is irrelevant to the given database schema and cannot be answered using SQL with that schema.
-        - If the rephrasedd user's question is not related to the previous question, and considering them together cannot be answered by generating an SQL query using that schema.
-        - If the rephrasedd user's question contains SQL code.
-    - Characteristics:
-        - The rephrasedd user's question does not pertain to any aspect of the database or its data.
-        - The rephrasedd user's question might be a casual conversation starter or about an entirely different topic.
-        - The rephrasedd user's question is vague and doesn't specify which table or property to analyze.
-    - Instructions:
-        - MUST explicitly add phrases from the rephrasedd user's question that are not explicitly related to the database schema in the reasoning output. Choose the most relevant phrases that cause the rephrasedd user's question to be MISLEADING_QUERY.
-    - Examples:
-        - "How are you?"
-        - "What's the weather like today?"
-        - "Tell me a joke."
-- GENERAL
-    - When to Use:
-        - Use this category if the user is seeking general information about the database schema.
-        - If the rephrasedd user's question is related to the previous question, but considering them together cannot be answered by generating an SQL query using that schema.
-    - Characteristics:
-        - The question is about understanding the dataset or its capabilities.
-        - The user may need guidance on how to proceed or what questions to ask.
-    - Instructions:
-        - MUST explicitly add phrases from the rephrasedd user's question that are not explicitly related to the database schema in the reasoning output. Choose the most relevant phrases that cause the rephrasedd user's question to be GENERAL.
-    - Examples:
-        - "What is the dataset about?"
-        - "Tell me more about the database."
-        - "What can Wren AI do?"
-        - "How can I analyze customer behavior with this data?"
+### Intent Definitions ###
 
-### OUTPUT FORMAT ###
-Please provide your response as a JSON object, structured as follows:
+<TEXT_TO_SQL>
+**When to Use:**  
+- The user's inputs are about modifying SQL from previous questions.
+- The user's inputs are related to the database schema and requires an SQL query.
+- The question (or related previous query) includes references to specific tables, columns, or data details.
+
+**Requirements:**
+- Include specific table and column names from the schema in your reasoning or modifying SQL from previous questions.
+- Reference phrases from the user's inputs that clearly relate to the schema.
+
+**Examples:**  
+- "What is the total sales for last quarter?"
+- "Show me all customers who purchased product X."
+- "List the top 10 products by revenue."
+</TEXT_TO_SQL>
+
+<GENERAL>
+**When to Use:**  
+- The user seeks general information about the database schema or its overall capabilities.
+- The combined queries do not provide enough detail to generate a specific SQL query.
+
+**Requirements:**  
+- Highlight phrases from the user's inputs that indicate a general inquiry not tied to specific schema details.
+
+**Examples:**  
+- "What is the dataset about?"
+- "Tell me more about the database."
+- "How can I analyze customer behavior with this data?"
+</GENERAL>
+
+<USER_GUIDE>
+**When to Use:**  
+- The user's inputs pertains to Wren AI's features, usage, or capabilities.
+- The query relates directly to content in the user guide.
+
+**Examples:**  
+- "What can Wren AI do?"
+- "How can I reset a project?"
+- "How can I delete a project?"
+- "How can I connect to other databases?"
+- "How do I draw a chart?"
+</USER_GUIDE>
+
+<MISLEADING_QUERY>
+**When to Use:**  
+- The user's inputs is irrelevant to the database schema or includes SQL code.
+- The user's inputs lacks specific details (like table names or columns) needed to generate an SQL query.
+- It appears off-topic or is simply a casual conversation starter.
+
+**Requirements:**  
+- Incorporate phrases from the user's inputs that indicate the lack of relevance to the database schema.
+
+**Examples:**  
+- "How are you?"
+- "What's the weather like today?"
+- "Tell me a joke."
+</MISLEADING_QUERY>
+
+### Output Format ###
+Return your response as a JSON object with the following structure:
 
 {
-    "rephrased_question": "<REPHRASED_USER_QUESTION_IN_STRING_FORMAT>",
-    "reasoning": "<CHAIN_OF_THOUGHT_REASONING_BASED_ON_REPHRASED_USER_QUESTION_IN_STRING_FORMAT>",
-    "results": "MISLEADING_QUERY" | "TEXT_TO_SQL" | "GENERAL"
+    "rephrased_question": "<rephrased question in full standalone question if there are previous questions, otherwise the original question>",
+    "reasoning": "<brief chain-of-thought reasoning (max 20 words)>",
+    "results": "MISLEADING_QUERY" | "TEXT_TO_SQL" | "GENERAL" | "USER_GUIDE"
 }
 """
 
@@ -101,11 +109,38 @@ intent_classification_user_prompt_template = """
     {{ db_schema }}
 {% endfor %}
 
-### INPUT ###
-{% if query_history %}
-User's previous SQLs: {{ query_history }}
+{% if sql_samples %}
+### SQL SAMPLES ###
+{% for sql_sample in sql_samples %}
+Question:
+{{sql_sample.question}}
+SQL:
+{{sql_sample.sql}}
+{% endfor %}
 {% endif %}
-User's question: {{query}}
+
+{% if instructions %}
+### INSTRUCTIONS ###
+{{ instructions }}
+{% endif %}
+
+### USER GUIDE ###
+{% for doc in docs %}
+- {{doc.path}}: {{doc.content}}
+{% endfor %}
+
+### INPUT ###
+{% if histories %}
+User's previous questions:
+{% for history in histories %}
+Question:
+{{ history.question }}
+SQL:
+{{ history.sql }}
+{% endfor %}
+{% endif %}
+
+User's current question: {{query}}
 Current Time: {{ current_time }}
 Output Language: {{ language }}
 
@@ -115,11 +150,9 @@ Let's think step by step
 
 ## Start of Pipeline
 @observe(capture_input=False, capture_output=False)
-async def embedding(
-    query: str, embedder: Any, history: Optional[AskHistory] = None
-) -> dict:
+async def embedding(query: str, embedder: Any, histories: list[AskHistory]) -> dict:
     previous_query_summaries = (
-        [step.summary for step in history.steps if step.summary] if history else []
+        [history.question for history in histories] if histories else []
     )
 
     query = "\n".join(previous_query_summaries) + "\n" + query
@@ -128,7 +161,9 @@ async def embedding(
 
 
 @observe(capture_input=False)
-async def table_retrieval(embedding: dict, id: str, table_retriever: Any) -> dict:
+async def table_retrieval(
+    embedding: dict, project_id: str, table_retriever: Any
+) -> dict:
     filters = {
         "operator": "AND",
         "conditions": [
@@ -136,9 +171,9 @@ async def table_retrieval(embedding: dict, id: str, table_retriever: Any) -> dic
         ],
     }
 
-    if id:
+    if project_id:
         filters["conditions"].append(
-            {"field": "project_id", "operator": "==", "value": id}
+            {"field": "project_id", "operator": "==", "value": project_id}
         )
 
     return await table_retriever.run(
@@ -149,7 +184,7 @@ async def table_retrieval(embedding: dict, id: str, table_retriever: Any) -> dic
 
 @observe(capture_input=False)
 async def dbschema_retrieval(
-    table_retrieval: dict, embedding: dict, id: str, dbschema_retriever: Any
+    table_retrieval: dict, embedding: dict, project_id: str, dbschema_retriever: Any
 ) -> list[Document]:
     tables = table_retrieval.get("documents", [])
     table_names = []
@@ -172,9 +207,9 @@ async def dbschema_retrieval(
         ],
     }
 
-    if id:
+    if project_id:
         filters["conditions"].append(
-            {"field": "project_id", "operator": "==", "value": id}
+            {"field": "project_id", "operator": "==", "value": project_id}
         )
 
     results = await dbschema_retriever.run(
@@ -220,17 +255,26 @@ def construct_db_schemas(dbschema_retrieval: list[Document]) -> list[str]:
 @observe(capture_input=False)
 def prompt(
     query: str,
+    wren_ai_docs: list[dict],
     construct_db_schemas: list[str],
+    histories: list[AskHistory],
     prompt_builder: PromptBuilder,
-    history: Optional[AskHistory] = None,
+    sql_samples: Optional[list[dict]] = None,
+    instructions: Optional[list[dict]] = None,
     configuration: Configuration | None = None,
 ) -> dict:
     return prompt_builder.run(
         query=query,
         language=configuration.language,
         db_schemas=construct_db_schemas,
-        query_history=history.sql if history else [],
+        histories=histories,
+        sql_samples=sql_samples,
+        instructions=construct_instructions(
+            instructions=instructions,
+            configuration=configuration,
+        ),
         current_time=configuration.show_current_time(),
+        docs=wren_ai_docs,
     )
 
 
@@ -244,15 +288,15 @@ def post_process(classify_intent: dict, construct_db_schemas: list[str]) -> dict
     try:
         results = orjson.loads(classify_intent.get("replies")[0])
         return {
-            "intent": results["results"],
             "rephrased_question": results["rephrased_question"],
+            "intent": results["results"],
             "reasoning": results["reasoning"],
             "db_schemas": construct_db_schemas,
         }
     except Exception:
         return {
-            "intent": "TEXT_TO_SQL",
             "rephrased_question": "",
+            "intent": "TEXT_TO_SQL",
             "reasoning": "",
             "db_schemas": construct_db_schemas,
         }
@@ -262,8 +306,8 @@ def post_process(classify_intent: dict, construct_db_schemas: list[str]) -> dict
 
 
 class IntentClassificationResult(BaseModel):
-    results: Literal["MISLEADING_QUERY", "TEXT_TO_SQL", "GENERAL"]
     rephrased_question: str
+    results: Literal["MISLEADING_QUERY", "TEXT_TO_SQL", "GENERAL", "USER_GUIDE"]
     reasoning: str
 
 
@@ -284,6 +328,7 @@ class IntentClassification(BasicPipeline):
         llm_provider: LLMProvider,
         embedder_provider: EmbedderProvider,
         document_store_provider: DocumentStoreProvider,
+        wren_ai_docs: list[dict],
         table_retrieval_size: Optional[int] = 50,
         table_column_retrieval_size: Optional[int] = 100,
         **kwargs,
@@ -307,6 +352,10 @@ class IntentClassification(BasicPipeline):
             ),
         }
 
+        self._configs = {
+            "wren_ai_docs": wren_ai_docs,
+        }
+
         super().__init__(
             AsyncDriver({}, sys.modules[__name__], result_builder=base.DictResult())
         )
@@ -315,8 +364,10 @@ class IntentClassification(BasicPipeline):
     async def run(
         self,
         query: str,
-        id: Optional[str] = None,
-        history: Optional[AskHistory] = None,
+        project_id: Optional[str] = None,
+        histories: Optional[list[AskHistory]] = None,
+        sql_samples: Optional[list[dict]] = None,
+        instructions: Optional[list[dict]] = None,
         configuration: Configuration = Configuration(),
     ):
         logger.info("Intent Classification pipeline is running...")
@@ -324,10 +375,13 @@ class IntentClassification(BasicPipeline):
             ["post_process"],
             inputs={
                 "query": query,
-                "id": id or "",
-                "history": history,
+                "project_id": project_id or "",
+                "histories": histories or [],
+                "sql_samples": sql_samples or [],
+                "instructions": instructions or [],
                 "configuration": configuration,
                 **self._components,
+                **self._configs,
             },
         )
 

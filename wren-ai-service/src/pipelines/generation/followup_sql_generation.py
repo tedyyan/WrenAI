@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from hamilton import base
 from hamilton.async_driver import AsyncDriver
@@ -13,9 +13,11 @@ from src.core.provider import LLMProvider
 from src.pipelines.generation.utils.sql import (
     SQL_GENERATION_MODEL_KWARGS,
     SQLGenPostProcessor,
+    construct_ask_history_messages,
     construct_instructions,
     sql_generation_system_prompt,
 )
+from src.pipelines.retrieval.sql_functions import SqlFunction
 from src.web.v1.services import Configuration
 from src.web.v1.services.ask import AskHistory
 
@@ -37,6 +39,13 @@ generate one SQL query to best answer user's question.
 {{ instructions }}
 {% endif %}
 
+{% if sql_functions %}
+### SQL FUNCTIONS ###
+{% for function in sql_functions %}
+{{ function }}
+{% endfor %}
+{% endif %}
+
 {% if sql_samples %}
 ### SQL SAMPLES ###
 {% for sample in sql_samples %}
@@ -46,13 +55,6 @@ SQL:
 {{sample.sql}}
 {% endfor %}
 {% endif %}
-
-### CONTEXT ###
-Previous SQL Summary:
-{% for summary in previous_query_summaries %}
-    {{ summary }}
-{% endfor %}
-Previous SQL Query: {{ history.sql }}
 
 ### QUESTION ###
 User's Follow-up Question: {{ query }}
@@ -69,37 +71,40 @@ Let's think step by step.
 @observe(capture_input=False)
 def prompt(
     query: str,
-    documents: List[str],
+    documents: list[str],
     sql_generation_reasoning: str,
-    history: AskHistory,
     configuration: Configuration,
     prompt_builder: PromptBuilder,
-    sql_samples: List[Dict] | None = None,
+    sql_samples: list[dict] | None = None,
+    instructions: list[dict] | None = None,
     has_calculated_field: bool = False,
     has_metric: bool = False,
+    sql_functions: list[SqlFunction] | None = None,
 ) -> dict:
-    previous_query_summaries = [step.summary for step in history.steps if step.summary]
-
     return prompt_builder.run(
         query=query,
         documents=documents,
         sql_generation_reasoning=sql_generation_reasoning,
-        history=history,
-        previous_query_summaries=previous_query_summaries,
         instructions=construct_instructions(
             configuration,
             has_calculated_field,
             has_metric,
-            sql_samples,
+            instructions,
         ),
         current_time=configuration.show_current_time(),
         sql_samples=sql_samples,
+        sql_functions=sql_functions,
     )
 
 
 @observe(as_type="generation", capture_input=False)
-async def generate_sql_in_followup(prompt: dict, generator: Any) -> dict:
-    return await generator(prompt=prompt.get("prompt"))
+async def generate_sql_in_followup(
+    prompt: dict, generator: Any, histories: list[AskHistory]
+) -> dict:
+    history_messages = construct_ask_history_messages(histories)
+    return await generator(
+        prompt=prompt.get("prompt"), history_messages=history_messages
+    )
 
 
 @observe(capture_input=False)
@@ -150,14 +155,16 @@ class FollowUpSQLGeneration(BasicPipeline):
     async def run(
         self,
         query: str,
-        contexts: List[str],
+        contexts: list[str],
         sql_generation_reasoning: str,
-        history: AskHistory,
+        histories: list[AskHistory],
         configuration: Configuration = Configuration(),
-        sql_samples: List[Dict] | None = None,
+        sql_samples: list[dict] | None = None,
+        instructions: list[dict] | None = None,
         project_id: str | None = None,
         has_calculated_field: bool = False,
         has_metric: bool = False,
+        sql_functions: list[SqlFunction] | None = None,
     ):
         logger.info("Follow-Up SQL Generation pipeline is running...")
         return await self._pipe.execute(
@@ -166,12 +173,14 @@ class FollowUpSQLGeneration(BasicPipeline):
                 "query": query,
                 "documents": contexts,
                 "sql_generation_reasoning": sql_generation_reasoning,
-                "history": history,
+                "histories": histories,
                 "project_id": project_id,
                 "configuration": configuration,
                 "sql_samples": sql_samples,
+                "instructions": instructions,
                 "has_calculated_field": has_calculated_field,
                 "has_metric": has_metric,
+                "sql_functions": sql_functions,
                 **self._components,
                 **self._configs,
             },

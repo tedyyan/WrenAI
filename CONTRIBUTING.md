@@ -58,7 +58,7 @@ If you are contributing to both the [Wren UI Service](#wren-ui-service) and [Wre
     cd ../docker
     cp .env.example .env.local
     ```
-2. Modify your `.env.local` file: Fill in the `LLM_OPENAI_API_KEY` and `EMBEDDER_OPENAI_API_KEY` with your OpenAI API keys before starting.
+2. Modify your `.env.local` file: Fill in the `OPENAI_API_KEY` with your OpenAI API keys before starting.
 3. In the `WrenAI/docker` folder, copy `config.example.yaml` to `config.yaml` for AI service configuration. Also change `http://wren-ui:3000` to `http://host.docker.internal:3000` in `config.yaml`.
 4. Start the UI and engine services from the source code.
 5. Update the `env` variables in the `.env.local` file to point to the services you started manually.
@@ -148,7 +148,8 @@ If you prefer to learn by example, you can refer to this Trino [issue](https://g
    - Implement the data source form template in this file
 
 3. Set up the data source template:
-   - Navigate to `wren-ui/src/components/pages/setup/utils` > `DATA_SOURCE_FORM`
+   - Navigate to `wren-ui/src/utils/dataSourceType.ts`
+   - Add new data source image, name, properties
    - Update the necessary files to include the new data source template settings
 
 4. Update the data source list:

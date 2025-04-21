@@ -115,14 +115,10 @@ def _build_view_ddl(content: dict) -> str:
 
 ## Start of Pipeline
 @observe(capture_input=False, capture_output=False)
-async def embedding(
-    query: str, embedder: Any, history: Optional[AskHistory] = None
-) -> dict:
+async def embedding(query: str, embedder: Any, histories: list[AskHistory]) -> dict:
     if query:
-        if history:
-            previous_query_summaries = [
-                step.summary for step in history.steps if step.summary
-            ]
+        if histories:
+            previous_query_summaries = [history.question for history in histories]
         else:
             previous_query_summaries = []
 
@@ -135,7 +131,7 @@ async def embedding(
 
 @observe(capture_input=False)
 async def table_retrieval(
-    embedding: dict, id: str, tables: list[str], table_retriever: Any
+    embedding: dict, project_id: str, tables: list[str], table_retriever: Any
 ) -> dict:
     filters = {
         "operator": "AND",
@@ -144,9 +140,9 @@ async def table_retrieval(
         ],
     }
 
-    if id:
+    if project_id:
         filters["conditions"].append(
-            {"field": "project_id", "operator": "==", "value": id}
+            {"field": "project_id", "operator": "==", "value": project_id}
         )
 
     if embedding:
@@ -167,7 +163,7 @@ async def table_retrieval(
 
 @observe(capture_input=False)
 async def dbschema_retrieval(
-    table_retrieval: dict, id: str, dbschema_retriever: Any
+    table_retrieval: dict, project_id: str, dbschema_retriever: Any
 ) -> list[Document]:
     tables = table_retrieval.get("documents", [])
     table_names = []
@@ -188,9 +184,9 @@ async def dbschema_retrieval(
         ],
     }
 
-    if id:
+    if project_id:
         filters["conditions"].append(
-            {"field": "project_id", "operator": "==", "value": id}
+            {"field": "project_id", "operator": "==", "value": project_id}
         )
 
     results = await dbschema_retriever.run(query_embedding=[], filters=filters)
@@ -292,7 +288,7 @@ def prompt(
     construct_db_schemas: list[dict],
     prompt_builder: PromptBuilder,
     check_using_db_schemas_without_pruning: dict,
-    history: Optional[AskHistory] = None,
+    histories: list[AskHistory],
 ) -> dict:
     if not check_using_db_schemas_without_pruning["db_schemas"]:
         logger.info(
@@ -303,14 +299,12 @@ def prompt(
             for construct_db_schema in construct_db_schemas
         ]
 
-        if history:
-            previous_query_summaries = [
-                step.summary for step in history.steps if step.summary
-            ]
-        else:
-            previous_query_summaries = []
+        previous_query_summaries = (
+            [history.question for history in histories] if histories else []
+        )
 
         query = "\n".join(previous_query_summaries) + "\n" + query
+
         return prompt_builder.run(question=query, db_schemas=db_schemas)
     else:
         return {}
@@ -481,8 +475,8 @@ class Retrieval(BasicPipeline):
         self,
         query: str = "",
         tables: Optional[list[str]] = None,
-        id: Optional[str] = None,
-        history: Optional[AskHistory] = None,
+        project_id: Optional[str] = None,
+        histories: Optional[list[AskHistory]] = None,
     ):
         logger.info("Ask Retrieval pipeline is running...")
         return await self._pipe.execute(
@@ -490,8 +484,8 @@ class Retrieval(BasicPipeline):
             inputs={
                 "query": query,
                 "tables": tables,
-                "id": id or "",
-                "history": history,
+                "project_id": project_id or "",
+                "histories": histories or [],
                 **self._components,
                 **self._configs,
             },

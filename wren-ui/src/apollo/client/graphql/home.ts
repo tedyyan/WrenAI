@@ -55,6 +55,40 @@ const COMMON_CHART_DETAIL = gql`
   }
 `;
 
+const COMMON_ASKING_TASK = gql`
+  fragment CommonAskingTask on AskingTask {
+    status
+    type
+    candidates {
+      sql
+      type
+      view {
+        id
+        name
+        statement
+        displayName
+      }
+      sqlPair {
+        id
+        question
+        sql
+        projectId
+      }
+    }
+    error {
+      ...CommonError
+    }
+    rephrasedQuestion
+    intentReasoning
+    sqlGenerationReasoning
+    retrievedTables
+    invalidSql
+    traceId
+    queryId
+  }
+  ${COMMON_ERROR}
+`;
+
 const COMMON_RESPONSE = gql`
   fragment CommonResponse on ThreadResponse {
     id
@@ -76,11 +110,30 @@ const COMMON_RESPONSE = gql`
     chartDetail {
       ...CommonChartDetail
     }
+    askingTask {
+      ...CommonAskingTask
+    }
+    adjustment {
+      type
+      payload
+    }
+    adjustmentTask {
+      queryId
+      status
+      error {
+        ...CommonError
+      }
+      sql
+      traceId
+      invalidSql
+    }
   }
 
   ${COMMON_BREAKDOWN_DETAIL}
   ${COMMON_ANSWER_DETAIL}
   ${COMMON_CHART_DETAIL}
+  ${COMMON_ASKING_TASK}
+  ${COMMON_ERROR}
 `;
 
 const COMMON_RECOMMENDED_QUESTIONS_TASK = gql`
@@ -113,25 +166,10 @@ export const SUGGESTED_QUESTIONS = gql`
 export const ASKING_TASK = gql`
   query AskingTask($taskId: String!) {
     askingTask(taskId: $taskId) {
-      status
-      type
-      candidates {
-        sql
-        type
-        view {
-          id
-          name
-          statement
-          displayName
-        }
-      }
-      error {
-        ...CommonError
-      }
-      intentReasoning
+      ...CommonAskingTask
     }
   }
-  ${COMMON_ERROR}
+  ${COMMON_ASKING_TASK}
 `;
 
 export const THREADS = gql`
@@ -178,6 +216,14 @@ export const CANCEL_ASKING_TASK = gql`
   }
 `;
 
+export const RERUN_ASKING_TASK = gql`
+  mutation RerunAskingTask($responseId: Int!) {
+    rerunAskingTask(responseId: $responseId) {
+      id
+    }
+  }
+`;
+
 export const CREATE_THREAD = gql`
   mutation CreateThread($data: CreateThreadInput!) {
     createThread(data: $data) {
@@ -208,6 +254,31 @@ export const UPDATE_THREAD = gql`
       summary
     }
   }
+`;
+
+export const UPDATE_THREAD_RESPONSE = gql`
+  mutation UpdateThreadResponse(
+    $where: ThreadResponseUniqueWhereInput!
+    $data: UpdateThreadResponseInput!
+  ) {
+    updateThreadResponse(where: $where, data: $data) {
+      ...CommonResponse
+    }
+  }
+  ${COMMON_RESPONSE}
+`;
+
+// For adjust reasoning steps or SQL
+export const ADJUST_THREAD_RESPONSE = gql`
+  mutation AdjustThreadResponse(
+    $responseId: Int!
+    $data: AdjustThreadResponseInput!
+  ) {
+    adjustThreadResponse(responseId: $responseId, data: $data) {
+      ...CommonResponse
+    }
+  }
+  ${COMMON_RESPONSE}
 `;
 
 export const DELETE_THREAD = gql`
@@ -286,16 +357,6 @@ export const GENERATE_THREAD_RECOMMENDATION_QUESTIONS = gql`
   }
 `;
 
-export const GENERATE_THREAD_RESPONSE_BREAKDOWN = gql`
-  mutation GenerateThreadResponseBreakdown($responseId: Int!) {
-    generateThreadResponseBreakdown(responseId: $responseId) {
-      ...CommonResponse
-    }
-  }
-
-  ${COMMON_RESPONSE}
-`;
-
 export const GENERATE_THREAD_RESPONSE_ANSWER = gql`
   mutation GenerateThreadResponseAnswer($responseId: Int!) {
     generateThreadResponseAnswer(responseId: $responseId) {
@@ -325,4 +386,34 @@ export const ADJUST_THREAD_RESPONSE_CHART = gql`
     }
   }
   ${COMMON_RESPONSE}
+`;
+
+export const ADJUSTMENT_TASK = gql`
+  query AdjustmentTask($taskId: String!) {
+    adjustmentTask(taskId: $taskId) {
+      queryId
+      status
+      error {
+        code
+        shortMessage
+        message
+        stacktrace
+      }
+      sql
+      traceId
+      invalidSql
+    }
+  }
+`;
+
+export const CANCEL_ADJUSTMENT_TASK = gql`
+  mutation CancelAdjustmentTask($taskId: String!) {
+    cancelAdjustmentTask(taskId: $taskId)
+  }
+`;
+
+export const RERUN_ADJUSTMENT_TASK = gql`
+  mutation RerunAdjustmentTask($responseId: Int!) {
+    rerunAdjustmentTask(responseId: $responseId)
+  }
 `;

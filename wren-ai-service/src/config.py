@@ -30,12 +30,16 @@ class Settings(BaseSettings):
     table_retrieval_size: int = Field(default=10)
     table_column_retrieval_size: int = Field(default=100)
     allow_using_db_schemas_without_pruning: bool = Field(default=False)
+    historical_question_retrieval_similarity_threshold: float = Field(default=0.9)
     sql_pairs_similarity_threshold: float = Field(default=0.7)
     sql_pairs_retrieval_max_size: int = Field(default=10)
+    instructions_similarity_threshold: float = Field(default=0.7)
+    instructions_top_k: int = Field(default=10)
 
     # generation config
     allow_intent_classification: bool = Field(default=True)
     allow_sql_generation_reasoning: bool = Field(default=True)
+    max_histories: int = Field(default=5)
 
     # engine config
     engine_timeout: float = Field(default=30.0)
@@ -49,6 +53,10 @@ class Settings(BaseSettings):
         so we set it to 1_000_000, which is a large number
         """,
     )
+
+    # user guide config
+    is_oss: bool = Field(default=True)
+    doc_endpoint: str = Field(default="https://docs.getwren.ai")
 
     # langfuse config
     # in order to use langfuse, we also need to set the LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY in the .env or .env.dev file

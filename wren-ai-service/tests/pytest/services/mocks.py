@@ -9,28 +9,46 @@ class RetrievalMock(retrieval.Retrieval):
     def __init__(self, documents: list = []):
         self._documents = documents
 
-    async def run(self, query: str, id: Optional[str] = None):
+    async def run(self, query: str, project_id: Optional[str] = None):
         return {"construct_retrieval_results": self._documents}
+
+
+class SqlPairsRetrievalMock(retrieval.SqlPairsRetrieval):
+    def __init__(self, documents: list = []):
+        self._documents = documents
+
+    async def run(self, query: str, project_id: Optional[str] = None):
+        return {"formatted_output": {"documents": self._documents}}
+
+
+class InstructionsRetrievalMock(retrieval.Instructions):
+    def __init__(self, documents: list = []):
+        self._documents = documents
+
+    async def run(self, query: str, project_id: Optional[str] = None):
+        return {"formatted_output": {"documents": self._documents}}
 
 
 class HistoricalQuestionMock(retrieval.HistoricalQuestionRetrieval):
     def __init__(self, documents: list = []):
         self._documents = documents
 
-    async def run(self, query: str, id: Optional[str] = None):
+    async def run(self, query: str, project_id: Optional[str] = None):
         return {"formatted_output": {"documents": self._documents}}
 
 
 class IntentClassificationMock(generation.IntentClassification):
-    def __init__(self, intent: str = "MISLEADING_QUERY"):
+    def __init__(self, intent: str = "TEXT_TO_SQL"):
         self._intent = intent
 
     async def run(
         self,
         query: str,
-        id: Optional[str] = None,
-        history: Optional[AskHistory] = None,
+        project_id: Optional[str] = None,
+        histories: Optional[list[AskHistory]] = None,
         configuration: Configuration | None = None,
+        sql_samples: Optional[list[dict]] = None,
+        instructions: Optional[list[dict]] = None,
     ):
         return {"post_process": {"intent": self._intent, "db_schemas": []}}
 
@@ -54,26 +72,3 @@ class GenerationMock(generation.SQLGeneration):
                 "invalid_generation_results": self._invalid,
             }
         }
-
-
-class SQLSummaryMock(generation.SQLSummary):
-    """
-    Example for the results:
-     [
-         {
-             "sql": "select 1",
-             "summary": "the description of the sql",
-         }
-     ]
-    """
-
-    def __init__(self, results: list = []):
-        self._results = results
-
-    async def run(
-        self,
-        query: str,
-        sqls: list[str],
-        language: str,
-    ):
-        return {"post_process": {"sql_summary_results": self._results}}

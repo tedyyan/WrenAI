@@ -5,7 +5,10 @@ import { AskingResolver } from './resolvers/askingResolver';
 import { DiagramResolver } from './resolvers/diagramResolver';
 import { LearningResolver } from './resolvers/learningResolver';
 import { DashboardResolver } from './resolvers/dashboardResolver';
+import { SqlPairResolver } from './resolvers/sqlPairResolver';
+import { InstructionResolver } from './resolvers/instructionResolver';
 import { convertColumnType } from '@server/utils';
+import { DialectSQLScalar } from './scalars';
 
 const projectResolver = new ProjectResolver();
 const modelResolver = new ModelResolver();
@@ -13,8 +16,11 @@ const askingResolver = new AskingResolver();
 const diagramResolver = new DiagramResolver();
 const learningResolver = new LearningResolver();
 const dashboardResolver = new DashboardResolver();
+const sqlPairResolver = new SqlPairResolver();
+const instructionResolver = new InstructionResolver();
 const resolvers = {
   JSON: GraphQLJSON,
+  DialectSQL: DialectSQLScalar,
   Query: {
     listDataSourceTables: projectResolver.listDataSourceTables,
     autoGenerateRelation: projectResolver.autoGenerateRelation,
@@ -29,6 +35,9 @@ const resolvers = {
     askingTask: askingResolver.getAskingTask,
     suggestedQuestions: askingResolver.getSuggestedQuestions,
     instantRecommendedQuestions: askingResolver.getInstantRecommendedQuestions,
+
+    // Adjustment
+    adjustmentTask: askingResolver.getAdjustmentTask,
 
     // Thread
     thread: askingResolver.getThread,
@@ -55,6 +64,11 @@ const resolvers = {
 
     // Dashboard
     dashboardItems: dashboardResolver.getDashboardItems,
+
+    // SQL Pairs
+    sqlPairs: sqlPairResolver.getProjectSqlPairs,
+    // Instructions
+    instructions: instructionResolver.getInstructions,
   },
   Mutation: {
     deploy: modelResolver.deploy,
@@ -86,12 +100,19 @@ const resolvers = {
     cancelAskingTask: askingResolver.cancelAskingTask,
     createInstantRecommendedQuestions:
       askingResolver.createInstantRecommendedQuestions,
+    rerunAskingTask: askingResolver.rerunAskingTask,
+
+    // Adjustment
+    adjustThreadResponse: askingResolver.adjustThreadResponse,
+    cancelAdjustmentTask: askingResolver.cancelAdjustThreadResponseAnswer,
+    rerunAdjustmentTask: askingResolver.rerunAdjustThreadResponseAnswer,
 
     // Thread
     createThread: askingResolver.createThread,
     updateThread: askingResolver.updateThread,
     deleteThread: askingResolver.deleteThread,
     createThreadResponse: askingResolver.createThreadResponse,
+    updateThreadResponse: askingResolver.updateThreadResponse,
     previewData: askingResolver.previewData,
     previewBreakdownData: askingResolver.previewBreakdownData,
 
@@ -135,8 +156,20 @@ const resolvers = {
     // Dashboard
     updateDashboardItemLayouts: dashboardResolver.updateDashboardItemLayouts,
     createDashboardItem: dashboardResolver.createDashboardItem,
+    updateDashboardItem: dashboardResolver.updateDashboardItem,
     deleteDashboardItem: dashboardResolver.deleteDashboardItem,
     previewItemSQL: dashboardResolver.previewItemSQL,
+
+    // SQL Pairs
+    createSqlPair: sqlPairResolver.createSqlPair,
+    updateSqlPair: sqlPairResolver.updateSqlPair,
+    deleteSqlPair: sqlPairResolver.deleteSqlPair,
+    generateQuestion: sqlPairResolver.generateQuestion,
+    modelSubstitute: sqlPairResolver.modelSubstitute,
+    // Instructions
+    createInstruction: instructionResolver.createInstruction,
+    updateInstruction: instructionResolver.updateInstruction,
+    deleteInstruction: instructionResolver.deleteInstruction,
   },
   ThreadResponse: askingResolver.getThreadResponseNestedResolver(),
   DetailStep: askingResolver.getDetailStepNestedResolver(),
@@ -150,6 +183,9 @@ const resolvers = {
   DetailedColumn: { type: convertColumnType },
   DetailedNestedColumn: { type: convertColumnType },
   DetailedChangeColumn: { type: convertColumnType },
+
+  // Add this line to include the SqlPair nested resolver
+  SqlPair: sqlPairResolver.getSqlPairNestedResolver(),
 };
 
 export default resolvers;

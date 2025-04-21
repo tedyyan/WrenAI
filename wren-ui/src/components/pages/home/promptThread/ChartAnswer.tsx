@@ -4,18 +4,14 @@ import styled from 'styled-components';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Form, Button, Skeleton, Modal, message } from 'antd';
 import { attachLoading } from '@/utils/helper';
-import { ReloadOutlined } from '@ant-design/icons';
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import BasicProperties from '@/components/chart/properties/BasicProperties';
 import DonutProperties from '@/components/chart/properties/DonutProperties';
 import LineProperties from '@/components/chart/properties/LineProperties';
 import StackedBarProperties from '@/components/chart/properties/StackedBarProperties';
 import GroupedBarProperties from '@/components/chart/properties/GroupedBarProperties';
-import {
-  AdjustThreadResponseChartInput,
-  ChartTaskStatus,
-  ChartType,
-  ThreadResponse,
-} from '@/apollo/client/graphql/__types__';
+import { Props as AnswerResultProps } from '@/components/pages/home/promptThread/AnswerResult';
+import { ChartTaskStatus, ChartType } from '@/apollo/client/graphql/__types__';
 import { usePreviewDataMutation } from '@/apollo/client/graphql/home.generated';
 import { isEmpty, isEqual } from 'lodash';
 import {
@@ -24,6 +20,7 @@ import {
 } from '@/components/chart/handler';
 import { useCreateDashboardItemMutation } from '@/apollo/client/graphql/dashboard.generated';
 import { DashboardItemType } from '@/apollo/server/repositories';
+import usePromptThreadStore from './store';
 
 const Chart = dynamic(() => import('@/components/chart'), {
   ssr: false,
@@ -61,15 +58,6 @@ const Toolbar = styled.div`
   }
 `;
 
-interface Props {
-  threadResponse: ThreadResponse;
-  onRegenerateChartAnswer: (responseId: number) => Promise<void>;
-  onAdjustChartAnswer: (
-    responseId: number,
-    data: AdjustThreadResponseChartInput,
-  ) => Promise<void>;
-}
-
 export const getIsChartFinished = (status: ChartTaskStatus) => {
   return [
     ChartTaskStatus.FINISHED,
@@ -89,9 +77,9 @@ const getDynamicProperties = (chartType: ChartType) => {
   return propertiesMap[chartType] || BasicProperties;
 };
 
-export default function ChartAnswer(props: Props) {
-  const { threadResponse, onRegenerateChartAnswer, onAdjustChartAnswer } =
-    props;
+export default function ChartAnswer(props: AnswerResultProps) {
+  const { onGenerateChartAnswer, onAdjustChartAnswer } = usePromptThreadStore();
+  const { threadResponse } = props;
   const [regenerating, setRegenerating] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [newValues, setNewValues] = useState(null);
@@ -169,7 +157,7 @@ export default function ChartAnswer(props: Props) {
   };
 
   const onRegenerate = () => {
-    attachLoading(onRegenerateChartAnswer, setRegenerating)(threadResponse.id);
+    attachLoading(onGenerateChartAnswer, setRegenerating)(threadResponse.id);
     onResetState();
   };
 
@@ -230,7 +218,7 @@ export default function ChartAnswer(props: Props) {
 
   if (error) {
     return (
-      <div className="py-6 px-4">
+      <div className="p-6">
         <Alert
           message={error.shortMessage}
           description={error.message}
@@ -251,7 +239,7 @@ export default function ChartAnswer(props: Props) {
       paragraph={{ rows: 4 }}
       title={false}
     >
-      <div className="text-md gray-10 py-6 px-4">
+      <div className="text-md gray-10 p-6">
         {chartDetail?.description}
         {chartSpec ? (
           <ChartWrapper

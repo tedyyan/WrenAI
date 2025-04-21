@@ -99,4 +99,43 @@ export const ERROR_TEXTS = {
       INVALID_NUMBER_TYPE: 'Please select a number type field.',
     },
   },
+  SQL_PAIR: {
+    SQL: {
+      REQUIRED: 'Please input SQL statement.',
+    },
+    QUESTION: {
+      REQUIRED: 'Please input a matching question.',
+      MAX_LENGTH: 'Question must be 300 characters or fewer.',
+    },
+  },
+  INSTRUCTION: {
+    DETAILS: {
+      REQUIRED: 'Please input an instruction details.',
+    },
+    QUESTIONS: {
+      REQUIRED: 'Please input a matching question.',
+    },
+    IS_DEFAULT_GLOBAL: {
+      REQUIRED: 'Please select how to apply this instruction.',
+    },
+  },
+  FIX_SQL: {
+    SQL: {
+      REQUIRED: 'Please input SQL statement.',
+    },
+  },
+  ADJUST_REASONING: {
+    SELECTED_MODELS: {
+      REQUIRED: 'Please select at least one model',
+    },
+    STEPS: {
+      REQUIRED: 'Please input reasoning steps',
+      MAX_LENGTH: 'Reasoning steps must be 3000 characters or fewer.',
+    },
+  },
+  IMPORT_DATA_SOURCE_SQL: {
+    SQL: {
+      REQUIRED: 'Please input SQL statement.',
+    },
+  },
 };

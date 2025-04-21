@@ -16,6 +16,8 @@ import {
   IDeployLogRepository,
   IDashboardRepository,
   IDashboardItemRepository,
+  ISqlPairRepository,
+  IInstructionRepository,
 } from '@server/repositories';
 import {
   IQueryService,
@@ -25,12 +27,14 @@ import {
   IMDLService,
   IProjectService,
   IDashboardService,
+  IInstructionService,
 } from '@server/services';
 import { ITelemetry } from '@server/telemetry/telemetry';
 import {
   ProjectRecommendQuestionBackgroundTracker,
   ThreadRecommendQuestionBackgroundTracker,
 } from '@server/backgrounds';
+import { ISqlPairService } from '../services/sqlPairService';
 
 export interface IContext {
   config: IConfig;
@@ -50,6 +54,8 @@ export interface IContext {
   askingService: IAskingService;
   queryService: IQueryService;
   dashboardService: IDashboardService;
+  sqlPairService: ISqlPairService;
+  instructionService: IInstructionService;
 
   // repository
   projectRepository: IProjectRepository;
@@ -63,6 +69,8 @@ export interface IContext {
   learningRepository: ILearningRepository;
   dashboardRepository: IDashboardRepository;
   dashboardItemRepository: IDashboardItemRepository;
+  sqlPairRepository: ISqlPairRepository;
+  instructionRepository: IInstructionRepository;
 
   // background trackers
   projectRecommendQuestionBackgroundTracker: ProjectRecommendQuestionBackgroundTracker;

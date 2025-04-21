@@ -14,6 +14,9 @@ import {
   LearningRepository,
   DashboardItemRepository,
   DashboardRepository,
+  SqlPairRepository,
+  AskingTaskRepository,
+  InstructionRepository,
 } from '@server/repositories';
 import {
   WrenEngineAdaptor,
@@ -28,12 +31,15 @@ import {
   AskingService,
   MDLService,
   DashboardService,
+  AskingTaskTracker,
+  InstructionService,
 } from '@server/services';
 import { PostHogTelemetry } from './apollo/server/telemetry/telemetry';
 import {
   ProjectRecommendQuestionBackgroundTracker,
   ThreadRecommendQuestionBackgroundTracker,
 } from './apollo/server/backgrounds';
+import { SqlPairService } from './apollo/server/services/sqlPairService';
 
 export const serverConfig = getConfig();
 
@@ -60,6 +66,9 @@ export const initComponents = () => {
   const learningRepository = new LearningRepository(knex);
   const dashboardRepository = new DashboardRepository(knex);
   const dashboardItemRepository = new DashboardItemRepository(knex);
+  const sqlPairRepository = new SqlPairRepository(knex);
+  const askingTaskRepository = new AskingTaskRepository(knex);
+  const instructionRepository = new InstructionRepository(knex);
 
   // adaptors
   const wrenEngineAdaptor = new WrenEngineAdaptor({
@@ -102,6 +111,12 @@ export const initComponents = () => {
     wrenAIAdaptor,
     telemetry,
   });
+  const askingTaskTracker = new AskingTaskTracker({
+    wrenAIAdaptor,
+    askingTaskRepository,
+    threadResponseRepository,
+    viewRepository,
+  });
   const askingService = new AskingService({
     telemetry,
     wrenAIAdaptor,
@@ -112,11 +127,22 @@ export const initComponents = () => {
     threadResponseRepository,
     queryService,
     mdlService,
+    askingTaskTracker,
+    askingTaskRepository,
   });
   const dashboardService = new DashboardService({
     projectService,
     dashboardItemRepository,
     dashboardRepository,
+  });
+  const sqlPairService = new SqlPairService({
+    sqlPairRepository,
+    wrenAIAdaptor,
+    ibisAdaptor,
+  });
+  const instructionService = new InstructionService({
+    instructionRepository,
+    wrenAIAdaptor,
   });
 
   // background trackers
@@ -151,7 +177,10 @@ export const initComponents = () => {
     modelNestedColumnRepository,
     dashboardRepository,
     dashboardItemRepository,
+    sqlPairRepository,
+    askingTaskRepository,
 
+    instructionRepository,
     // adaptors
     wrenEngineAdaptor,
     wrenAIAdaptor,
@@ -165,7 +194,10 @@ export const initComponents = () => {
     askingService,
     mdlService,
     dashboardService,
+    sqlPairService,
+    instructionService,
 
+    askingTaskTracker,
     // background trackers
     projectRecommendQuestionBackgroundTracker,
     threadRecommendQuestionBackgroundTracker,

@@ -7,6 +7,7 @@ from src.config import Settings
 from src.core.pipeline import PipelineComponent
 from src.core.provider import EmbedderProvider, LLMProvider
 from src.pipelines import generation, indexing, retrieval
+from src.utils import fetch_wren_ai_docs
 from src.web.v1 import services
 
 logger = logging.getLogger("wren-ai-service")
@@ -15,7 +16,6 @@ logger = logging.getLogger("wren-ai-service")
 @dataclass
 class ServiceContainer:
     ask_service: services.AskService
-    ask_details_service: services.AskDetailsService
     question_recommendation: services.QuestionRecommendation
     relationship_recommendation: services.RelationshipRecommendation
     semantics_description: services.SemanticsDescription
@@ -23,9 +23,10 @@ class ServiceContainer:
     chart_service: services.ChartService
     chart_adjustment_service: services.ChartAdjustmentService
     sql_answer_service: services.SqlAnswerService
-    sql_expansion_service: services.SqlExpansionService
     sql_pairs_service: services.SqlPairsService
     sql_question_service: services.SqlQuestionService
+    instructions_service: services.InstructionsService
+    sql_correction_service: services.SqlCorrectionService
 
 
 @dataclass
@@ -49,6 +50,10 @@ def create_service_container(
         "maxsize": settings.query_cache_maxsize,
         "ttl": settings.query_cache_ttl,
     }
+    wren_ai_docs = fetch_wren_ai_docs(settings.doc_endpoint, settings.is_oss)
+    if not wren_ai_docs:
+        logger.warning("Failed to fetch Wren AI docs or response was empty.")
+
     return ServiceContainer(
         semantics_description=services.SemanticsDescription(
             pipelines={
@@ -74,6 +79,12 @@ def create_service_container(
                     **pipe_components["sql_pairs_indexing"],
                     sql_pairs_path=settings.sql_pairs_path,
                 ),
+                "instructions": indexing.Instructions(
+                    **pipe_components["instructions_indexing"],
+                ),
+                "project_meta": indexing.ProjectMeta(
+                    **pipe_components["project_meta_indexing"],
+                ),
             },
             **query_cache,
         ),
@@ -81,9 +92,17 @@ def create_service_container(
             pipelines={
                 "intent_classification": generation.IntentClassification(
                     **pipe_components["intent_classification"],
+                    wren_ai_docs=wren_ai_docs,
+                ),
+                "misleading_assistance": generation.MisleadingAssistance(
+                    **pipe_components["misleading_assistance"],
                 ),
                 "data_assistance": generation.DataAssistance(
                     **pipe_components["data_assistance"]
+                ),
+                "user_guide_assistance": generation.UserGuideAssistance(
+                    **pipe_components["user_guide_assistance"],
+                    wren_ai_docs=wren_ai_docs,
                 ),
                 "retrieval": retrieval.Retrieval(
                     **pipe_components["db_schema_retrieval"],
@@ -93,11 +112,17 @@ def create_service_container(
                 ),
                 "historical_question": retrieval.HistoricalQuestionRetrieval(
                     **pipe_components["historical_question_retrieval"],
+                    historical_question_retrieval_similarity_threshold=settings.historical_question_retrieval_similarity_threshold,
                 ),
                 "sql_pairs_retrieval": retrieval.SqlPairsRetrieval(
                     **pipe_components["sql_pairs_retrieval"],
                     sql_pairs_similarity_threshold=settings.sql_pairs_similarity_threshold,
                     sql_pairs_retrieval_max_size=settings.sql_pairs_retrieval_max_size,
+                ),
+                "instructions_retrieval": retrieval.Instructions(
+                    **pipe_components["instructions_retrieval"],
+                    similarity_threshold=settings.instructions_similarity_threshold,
+                    top_k=settings.instructions_top_k,
                 ),
                 "sql_generation": generation.SQLGeneration(
                     **pipe_components["sql_generation"],
@@ -105,6 +130,9 @@ def create_service_container(
                 ),
                 "sql_generation_reasoning": generation.SQLGenerationReasoning(
                     **pipe_components["sql_generation_reasoning"],
+                ),
+                "followup_sql_generation_reasoning": generation.FollowUpSQLGenerationReasoning(
+                    **pipe_components["followup_sql_generation_reasoning"],
                 ),
                 "sql_correction": generation.SQLCorrection(
                     **pipe_components["sql_correction"],
@@ -114,16 +142,18 @@ def create_service_container(
                     **pipe_components["followup_sql_generation"],
                     engine_timeout=settings.engine_timeout,
                 ),
-                "sql_summary": generation.SQLSummary(
-                    **pipe_components["sql_summary"],
-                ),
                 "sql_regeneration": generation.SQLRegeneration(
                     **pipe_components["sql_regeneration"],
+                    engine_timeout=settings.engine_timeout,
+                ),
+                "sql_functions_retrieval": retrieval.SqlFunctions(
+                    **pipe_components["sql_functions_retrieval"],
                     engine_timeout=settings.engine_timeout,
                 ),
             },
             allow_intent_classification=settings.allow_intent_classification,
             allow_sql_generation_reasoning=settings.allow_sql_generation_reasoning,
+            max_histories=settings.max_histories,
             **query_cache,
         ),
         chart_service=services.ChartService(
@@ -162,39 +192,6 @@ def create_service_container(
             },
             **query_cache,
         ),
-        ask_details_service=services.AskDetailsService(
-            pipelines={
-                "sql_breakdown": generation.SQLBreakdown(
-                    **pipe_components["sql_breakdown"],
-                    engine_timeout=settings.engine_timeout,
-                ),
-                "sql_summary": generation.SQLSummary(
-                    **pipe_components["sql_summary"],
-                ),
-            },
-            **query_cache,
-        ),
-        sql_expansion_service=services.SqlExpansionService(
-            pipelines={
-                "retrieval": retrieval.Retrieval(
-                    **pipe_components["db_schema_retrieval"],
-                    table_retrieval_size=settings.table_retrieval_size,
-                    table_column_retrieval_size=settings.table_column_retrieval_size,
-                ),
-                "sql_expansion": generation.SQLExpansion(
-                    **pipe_components["sql_expansion"],
-                    engine_timeout=settings.engine_timeout,
-                ),
-                "sql_correction": generation.SQLCorrection(
-                    **pipe_components["sql_correction"],
-                    engine_timeout=settings.engine_timeout,
-                ),
-                "sql_summary": generation.SQLSummary(
-                    **pipe_components["sql_summary"],
-                ),
-            },
-            **query_cache,
-        ),
         relationship_recommendation=services.RelationshipRecommendation(
             pipelines={
                 "relationship_recommendation": generation.RelationshipRecommendation(
@@ -222,6 +219,16 @@ def create_service_container(
                 "sql_generation_reasoning": generation.SQLGenerationReasoning(
                     **pipe_components["sql_generation_reasoning"],
                 ),
+                "sql_pairs_retrieval": retrieval.SqlPairsRetrieval(
+                    **pipe_components["sql_pairs_retrieval"],
+                    sql_pairs_similarity_threshold=settings.sql_pairs_similarity_threshold,
+                    sql_pairs_retrieval_max_size=settings.sql_pairs_retrieval_max_size,
+                ),
+                "instructions_retrieval": retrieval.Instructions(
+                    **pipe_components["instructions_retrieval"],
+                    similarity_threshold=settings.instructions_similarity_threshold,
+                    top_k=settings.instructions_top_k,
+                ),
             },
             **query_cache,
         ),
@@ -239,6 +246,23 @@ def create_service_container(
                 "sql_question_generation": generation.SQLQuestion(
                     **pipe_components["sql_question_generation"],
                 )
+            },
+            **query_cache,
+        ),
+        instructions_service=services.InstructionsService(
+            pipelines={
+                "instructions_indexing": indexing.Instructions(
+                    **pipe_components["instructions_indexing"],
+                )
+            },
+            **query_cache,
+        ),
+        sql_correction_service=services.SqlCorrectionService(
+            pipelines={
+                "sql_correction": generation.SQLCorrection(
+                    **pipe_components["sql_correction"],
+                    engine_timeout=settings.engine_timeout,
+                ),
             },
             **query_cache,
         ),

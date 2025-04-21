@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from hamilton import base
 from hamilton.async_driver import AsyncDriver
@@ -16,6 +16,7 @@ from src.pipelines.generation.utils.sql import (
     construct_instructions,
     sql_generation_system_prompt,
 )
+from src.pipelines.retrieval.sql_functions import SqlFunction
 from src.web.v1.services import Configuration
 
 logger = logging.getLogger("wren-ai-service")
@@ -32,6 +33,13 @@ sql_generation_user_prompt_template = """
 {{ instructions }}
 {% endif %}
 
+{% if sql_functions %}
+### SQL FUNCTIONS ###
+{% for function in sql_functions %}
+{{ function }}
+{% endfor %}
+{% endif %}
+
 {% if sql_samples %}
 ### SQL SAMPLES ###
 {% for sample in sql_samples %}
@@ -39,7 +47,6 @@ Question:
 {{sample.question}}
 SQL:
 {{sample.sql}}
-
 {% endfor %}
 {% endif %}
 
@@ -60,13 +67,15 @@ Let's think step by step.
 @observe(capture_input=False)
 def prompt(
     query: str,
-    documents: List[str],
+    documents: list[str],
     prompt_builder: PromptBuilder,
     sql_generation_reasoning: str | None = None,
     configuration: Configuration | None = None,
-    sql_samples: List[Dict] | None = None,
+    sql_samples: list[dict] | None = None,
+    instructions: list[dict] | None = None,
     has_calculated_field: bool = False,
     has_metric: bool = False,
+    sql_functions: list[SqlFunction] | None = None,
 ) -> dict:
     return prompt_builder.run(
         query=query,
@@ -76,10 +85,11 @@ def prompt(
             configuration,
             has_calculated_field,
             has_metric,
-            sql_samples,
+            instructions,
         ),
         sql_samples=sql_samples,
         current_time=configuration.show_current_time(),
+        sql_functions=sql_functions,
     )
 
 
@@ -139,13 +149,15 @@ class SQLGeneration(BasicPipeline):
     async def run(
         self,
         query: str,
-        contexts: List[str],
+        contexts: list[str],
         sql_generation_reasoning: str | None = None,
         configuration: Configuration = Configuration(),
-        sql_samples: List[Dict] | None = None,
+        sql_samples: list[dict] | None = None,
+        instructions: list[dict] | None = None,
         project_id: str | None = None,
         has_calculated_field: bool = False,
         has_metric: bool = False,
+        sql_functions: list[SqlFunction] | None = None,
     ):
         logger.info("SQL Generation pipeline is running...")
         return await self._pipe.execute(
@@ -155,10 +167,12 @@ class SQLGeneration(BasicPipeline):
                 "documents": contexts,
                 "sql_generation_reasoning": sql_generation_reasoning,
                 "sql_samples": sql_samples,
+                "instructions": instructions,
                 "project_id": project_id,
                 "configuration": configuration,
                 "has_calculated_field": has_calculated_field,
                 "has_metric": has_metric,
+                "sql_functions": sql_functions,
                 **self._components,
                 **self._configs,
             },

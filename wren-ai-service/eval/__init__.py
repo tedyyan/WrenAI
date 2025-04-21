@@ -9,8 +9,10 @@ class EvalSettings(Settings):
     batch_interval: int = 1
     datasource: str = "bigquery"
     config_path: str = "eval/config.yaml"
-    openai_api_key: SecretStr = Field(alias="LLM_OPENAI_API_KEY")
+    openai_api_key: SecretStr = Field(alias="OPENAI_API_KEY")
     allow_sql_samples: bool = True
+    allow_instructions: bool = True
+    allow_sql_functions: bool = True
     db_path_for_duckdb: str = ""
 
     # BigQuery

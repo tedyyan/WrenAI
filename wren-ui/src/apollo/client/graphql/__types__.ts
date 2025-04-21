@@ -11,6 +11,7 @@ export type Scalars = {
   Boolean: boolean;
   Int: number;
   Float: number;
+  DialectSQL: any;
   JSON: any;
 };
 
@@ -23,12 +24,34 @@ export type AdjustThreadResponseChartInput = {
   yAxis?: InputMaybe<Scalars['String']>;
 };
 
+export type AdjustThreadResponseInput = {
+  sql?: InputMaybe<Scalars['String']>;
+  sqlGenerationReasoning?: InputMaybe<Scalars['String']>;
+  tables?: InputMaybe<Array<Scalars['String']>>;
+};
+
+export type AdjustmentTask = {
+  __typename?: 'AdjustmentTask';
+  error?: Maybe<Error>;
+  invalidSql?: Maybe<Scalars['String']>;
+  queryId?: Maybe<Scalars['String']>;
+  sql?: Maybe<Scalars['String']>;
+  status?: Maybe<AskingTaskStatus>;
+  traceId?: Maybe<Scalars['String']>;
+};
+
 export type AskingTask = {
   __typename?: 'AskingTask';
   candidates: Array<ResultCandidate>;
   error?: Maybe<Error>;
   intentReasoning?: Maybe<Scalars['String']>;
+  invalidSql?: Maybe<Scalars['String']>;
+  queryId?: Maybe<Scalars['String']>;
+  rephrasedQuestion?: Maybe<Scalars['String']>;
+  retrievedTables?: Maybe<Array<Scalars['String']>>;
+  sqlGenerationReasoning?: Maybe<Scalars['String']>;
   status: AskingTaskStatus;
+  traceId?: Maybe<Scalars['String']>;
   type?: Maybe<AskingTaskType>;
 };
 
@@ -111,6 +134,12 @@ export type CreateDashboardItemInput = {
   responseId: Scalars['Int'];
 };
 
+export type CreateInstructionInput = {
+  instruction: Scalars['String'];
+  isDefault: Scalars['Boolean'];
+  questions: Array<Scalars['String']>;
+};
+
 export type CreateModelInput = {
   fields: Array<Scalars['String']>;
   primaryKey?: InputMaybe<Scalars['String']>;
@@ -130,16 +159,21 @@ export type CreateSimpleMetricInput = {
   timeGrain: Array<TimeGrainInput>;
 };
 
+export type CreateSqlPairInput = {
+  question: Scalars['String'];
+  sql: Scalars['String'];
+};
+
 export type CreateThreadInput = {
   question?: InputMaybe<Scalars['String']>;
   sql?: InputMaybe<Scalars['String']>;
-  viewId?: InputMaybe<Scalars['Int']>;
+  taskId?: InputMaybe<Scalars['String']>;
 };
 
 export type CreateThreadResponseInput = {
   question?: InputMaybe<Scalars['String']>;
   sql?: InputMaybe<Scalars['String']>;
-  viewId?: InputMaybe<Scalars['Int']>;
+  taskId?: InputMaybe<Scalars['String']>;
 };
 
 export type CreateViewInput = {
@@ -156,6 +190,7 @@ export type DashboardItem = {
   __typename?: 'DashboardItem';
   dashboardId: Scalars['Int'];
   detail: DashboardItemDetail;
+  displayName?: Maybe<Scalars['String']>;
   id: Scalars['Int'];
   layout: DashboardItemLayout;
   type: DashboardItemType;
@@ -456,6 +491,10 @@ export type FieldInfo = {
   type?: Maybe<Scalars['String']>;
 };
 
+export type GenerateQuestionInput = {
+  sql: Scalars['String'];
+};
+
 export type GetMdlResult = {
   __typename?: 'GetMDLResult';
   hash: Scalars['String'];
@@ -464,6 +503,21 @@ export type GetMdlResult = {
 
 export type InstantRecommendedQuestionsInput = {
   previousQuestions?: InputMaybe<Array<Scalars['String']>>;
+};
+
+export type Instruction = {
+  __typename?: 'Instruction';
+  createdAt: Scalars['String'];
+  id: Scalars['Int'];
+  instruction: Scalars['String'];
+  isDefault: Scalars['Boolean'];
+  projectId: Scalars['Int'];
+  questions: Array<Scalars['String']>;
+  updatedAt: Scalars['String'];
+};
+
+export type InstructionWhereInput = {
+  id: Scalars['Int'];
 };
 
 export type ItemLayoutInput = {
@@ -500,6 +554,10 @@ export type ModelInfo = {
   sourceTableName: Scalars['String'];
 };
 
+export type ModelSubstituteInput = {
+  sql: Scalars['DialectSQL'];
+};
+
 export type ModelSyncResponse = {
   __typename?: 'ModelSyncResponse';
   status: SyncStatus;
@@ -511,35 +569,45 @@ export type ModelWhereInput = {
 
 export type Mutation = {
   __typename?: 'Mutation';
+  adjustThreadResponse: ThreadResponse;
   adjustThreadResponseChart: ThreadResponse;
+  cancelAdjustmentTask: Scalars['Boolean'];
   cancelAskingTask: Scalars['Boolean'];
   createAskingTask: Task;
   createCalculatedField: Scalars['JSON'];
   createDashboardItem: DashboardItem;
   createInstantRecommendedQuestions: Task;
+  createInstruction: Instruction;
   createModel: Scalars['JSON'];
   createRelation: Scalars['JSON'];
+  createSqlPair: SqlPair;
   createThread: Thread;
   createThreadResponse: ThreadResponse;
   createView: ViewInfo;
   deleteCalculatedField: Scalars['Boolean'];
   deleteDashboardItem: Scalars['Boolean'];
+  deleteInstruction: Scalars['Boolean'];
   deleteModel: Scalars['Boolean'];
   deleteRelation: Scalars['Boolean'];
+  deleteSqlPair: Scalars['Boolean'];
   deleteThread: Scalars['Boolean'];
   deleteView: Scalars['Boolean'];
   deploy: Scalars['JSON'];
   generateProjectRecommendationQuestions: Scalars['Boolean'];
+  generateQuestion: Scalars['String'];
   generateThreadRecommendationQuestions: Scalars['Boolean'];
   generateThreadResponseAnswer: ThreadResponse;
   generateThreadResponseBreakdown: ThreadResponse;
   generateThreadResponseChart: ThreadResponse;
+  modelSubstitute: Scalars['String'];
   previewBreakdownData: Scalars['JSON'];
   previewData: Scalars['JSON'];
   previewItemSQL: Scalars['JSON'];
   previewModelData: Scalars['JSON'];
   previewSql: Scalars['JSON'];
   previewViewData: Scalars['JSON'];
+  rerunAdjustmentTask: Scalars['Boolean'];
+  rerunAskingTask: Task;
   resetCurrentProject: Scalars['Boolean'];
   resolveSchemaChange: Scalars['Boolean'];
   saveDataSource: DataSource;
@@ -550,21 +618,36 @@ export type Mutation = {
   triggerDataSourceDetection: Scalars['Boolean'];
   updateCalculatedField: Scalars['JSON'];
   updateCurrentProject: Scalars['Boolean'];
+  updateDashboardItem: DashboardItem;
   updateDashboardItemLayouts: Array<DashboardItem>;
   updateDataSource: DataSource;
+  updateInstruction: Instruction;
   updateModel: Scalars['JSON'];
   updateModelMetadata: Scalars['Boolean'];
   updateRelation: Scalars['JSON'];
+  updateSqlPair: SqlPair;
   updateThread: Thread;
+  updateThreadResponse: ThreadResponse;
   updateViewMetadata: Scalars['Boolean'];
   validateCalculatedField: CalculatedFieldValidationResponse;
   validateView: ViewValidationResponse;
 };
 
 
+export type MutationAdjustThreadResponseArgs = {
+  data: AdjustThreadResponseInput;
+  responseId: Scalars['Int'];
+};
+
+
 export type MutationAdjustThreadResponseChartArgs = {
   data: AdjustThreadResponseChartInput;
   responseId: Scalars['Int'];
+};
+
+
+export type MutationCancelAdjustmentTaskArgs = {
+  taskId: Scalars['String'];
 };
 
 
@@ -593,6 +676,11 @@ export type MutationCreateInstantRecommendedQuestionsArgs = {
 };
 
 
+export type MutationCreateInstructionArgs = {
+  data: CreateInstructionInput;
+};
+
+
 export type MutationCreateModelArgs = {
   data: CreateModelInput;
 };
@@ -600,6 +688,11 @@ export type MutationCreateModelArgs = {
 
 export type MutationCreateRelationArgs = {
   data: RelationInput;
+};
+
+
+export type MutationCreateSqlPairArgs = {
+  data: CreateSqlPairInput;
 };
 
 
@@ -629,6 +722,11 @@ export type MutationDeleteDashboardItemArgs = {
 };
 
 
+export type MutationDeleteInstructionArgs = {
+  where: InstructionWhereInput;
+};
+
+
 export type MutationDeleteModelArgs = {
   where: ModelWhereInput;
 };
@@ -636,6 +734,11 @@ export type MutationDeleteModelArgs = {
 
 export type MutationDeleteRelationArgs = {
   where: WhereIdInput;
+};
+
+
+export type MutationDeleteSqlPairArgs = {
+  where: SqlPairWhereUniqueInput;
 };
 
 
@@ -651,6 +754,11 @@ export type MutationDeleteViewArgs = {
 
 export type MutationDeployArgs = {
   force?: InputMaybe<Scalars['Boolean']>;
+};
+
+
+export type MutationGenerateQuestionArgs = {
+  data: GenerateQuestionInput;
 };
 
 
@@ -671,6 +779,11 @@ export type MutationGenerateThreadResponseBreakdownArgs = {
 
 export type MutationGenerateThreadResponseChartArgs = {
   responseId: Scalars['Int'];
+};
+
+
+export type MutationModelSubstituteArgs = {
+  data: ModelSubstituteInput;
 };
 
 
@@ -701,6 +814,16 @@ export type MutationPreviewSqlArgs = {
 
 export type MutationPreviewViewDataArgs = {
   where: PreviewViewDataInput;
+};
+
+
+export type MutationRerunAdjustmentTaskArgs = {
+  responseId: Scalars['Int'];
+};
+
+
+export type MutationRerunAskingTaskArgs = {
+  responseId: Scalars['Int'];
 };
 
 
@@ -745,6 +868,12 @@ export type MutationUpdateCurrentProjectArgs = {
 };
 
 
+export type MutationUpdateDashboardItemArgs = {
+  data: UpdateDashboardItemInput;
+  where: DashboardItemWhereInput;
+};
+
+
 export type MutationUpdateDashboardItemLayoutsArgs = {
   data: UpdateDashboardItemLayoutsInput;
 };
@@ -752,6 +881,12 @@ export type MutationUpdateDashboardItemLayoutsArgs = {
 
 export type MutationUpdateDataSourceArgs = {
   data: UpdateDataSourceInput;
+};
+
+
+export type MutationUpdateInstructionArgs = {
+  data: UpdateInstructionInput;
+  where: InstructionWhereInput;
 };
 
 
@@ -773,9 +908,21 @@ export type MutationUpdateRelationArgs = {
 };
 
 
+export type MutationUpdateSqlPairArgs = {
+  data: UpdateSqlPairInput;
+  where: SqlPairWhereUniqueInput;
+};
+
+
 export type MutationUpdateThreadArgs = {
   data: UpdateThreadInput;
   where: ThreadUniqueWhereInput;
+};
+
+
+export type MutationUpdateThreadResponseArgs = {
+  data: UpdateThreadResponseInput;
+  where: ThreadResponseUniqueWhereInput;
 };
 
 
@@ -840,7 +987,7 @@ export type PreviewItemSqlInput = {
 export type PreviewSqlDataInput = {
   dryRun?: InputMaybe<Scalars['Boolean']>;
   limit?: InputMaybe<Scalars['Int']>;
-  projectId?: InputMaybe<Scalars['Int']>;
+  projectId?: InputMaybe<Scalars['String']>;
   sql: Scalars['String'];
 };
 
@@ -864,7 +1011,8 @@ export enum ProjectLanguage {
 
 export type Query = {
   __typename?: 'Query';
-  askingTask: AskingTask;
+  adjustmentTask?: Maybe<AdjustmentTask>;
+  askingTask?: Maybe<AskingTask>;
   autoGenerateRelation: Array<RecommendRelations>;
   dashboardItems: Array<DashboardItem>;
   diagram: Diagram;
@@ -872,6 +1020,7 @@ export type Query = {
   getProjectRecommendationQuestions: RecommendedQuestionsTask;
   getThreadRecommendationQuestions: RecommendedQuestionsTask;
   instantRecommendedQuestions: RecommendedQuestionsTask;
+  instructions: Array<Maybe<Instruction>>;
   learningRecord: LearningRecord;
   listDataSourceTables: Array<CompactTable>;
   listModels: Array<ModelInfo>;
@@ -882,11 +1031,17 @@ export type Query = {
   onboardingStatus: OnboardingStatusResponse;
   schemaChange: SchemaChange;
   settings: Settings;
+  sqlPairs: Array<Maybe<SqlPair>>;
   suggestedQuestions: SuggestedQuestionResponse;
   thread: DetailedThread;
   threadResponse: ThreadResponse;
   threads: Array<Thread>;
   view: ViewInfo;
+};
+
+
+export type QueryAdjustmentTaskArgs = {
+  taskId: Scalars['String'];
 };
 
 
@@ -991,12 +1146,14 @@ export type ResolveSchemaChangeWhereInput = {
 export type ResultCandidate = {
   __typename?: 'ResultCandidate';
   sql: Scalars['String'];
+  sqlPair?: Maybe<SqlPair>;
   type: ResultCandidateType;
   view?: Maybe<ViewInfo>;
 };
 
 export enum ResultCandidateType {
   LLM = 'LLM',
+  SQL_PAIR = 'SQL_PAIR',
   VIEW = 'VIEW'
 }
 
@@ -1059,6 +1216,20 @@ export type SimpleMeasureInput = {
   type: Scalars['String'];
 };
 
+export type SqlPair = {
+  __typename?: 'SqlPair';
+  createdAt?: Maybe<Scalars['String']>;
+  id: Scalars['Int'];
+  projectId: Scalars['Int'];
+  question: Scalars['String'];
+  sql: Scalars['String'];
+  updatedAt?: Maybe<Scalars['String']>;
+};
+
+export type SqlPairWhereUniqueInput = {
+  id: Scalars['Int'];
+};
+
 export type SuggestedQuestion = {
   __typename?: 'SuggestedQuestion';
   label: Scalars['String'];
@@ -1089,15 +1260,29 @@ export type Thread = {
 
 export type ThreadResponse = {
   __typename?: 'ThreadResponse';
+  adjustment?: Maybe<ThreadResponseAdjustment>;
+  adjustmentTask?: Maybe<AdjustmentTask>;
   answerDetail?: Maybe<ThreadResponseAnswerDetail>;
+  askingTask?: Maybe<AskingTask>;
   breakdownDetail?: Maybe<ThreadResponseBreakdownDetail>;
   chartDetail?: Maybe<ThreadResponseChartDetail>;
   id: Scalars['Int'];
   question: Scalars['String'];
-  sql: Scalars['String'];
+  sql?: Maybe<Scalars['String']>;
   threadId: Scalars['Int'];
   view?: Maybe<ViewInfo>;
 };
+
+export type ThreadResponseAdjustment = {
+  __typename?: 'ThreadResponseAdjustment';
+  payload?: Maybe<Scalars['JSON']>;
+  type: ThreadResponseAdjustmentType;
+};
+
+export enum ThreadResponseAdjustmentType {
+  APPLY_SQL = 'APPLY_SQL',
+  REASONING = 'REASONING'
+}
 
 export type ThreadResponseAnswerDetail = {
   __typename?: 'ThreadResponseAnswerDetail';
@@ -1138,6 +1323,10 @@ export type ThreadResponseChartDetail = {
   status: ChartTaskStatus;
 };
 
+export type ThreadResponseUniqueWhereInput = {
+  id: Scalars['Int'];
+};
+
 export type ThreadUniqueWhereInput = {
   id: Scalars['Int'];
 };
@@ -1173,12 +1362,22 @@ export type UpdateCurrentProjectInput = {
   language: ProjectLanguage;
 };
 
+export type UpdateDashboardItemInput = {
+  displayName: Scalars['String'];
+};
+
 export type UpdateDashboardItemLayoutsInput = {
   layouts: Array<ItemLayoutInput>;
 };
 
 export type UpdateDataSourceInput = {
   properties: Scalars['JSON'];
+};
+
+export type UpdateInstructionInput = {
+  instruction?: InputMaybe<Scalars['String']>;
+  isDefault?: InputMaybe<Scalars['Boolean']>;
+  questions?: InputMaybe<Array<Scalars['String']>>;
 };
 
 export type UpdateModelInput = {
@@ -1210,8 +1409,17 @@ export type UpdateRelationshipMetadataInput = {
   id: Scalars['Int'];
 };
 
+export type UpdateSqlPairInput = {
+  question?: InputMaybe<Scalars['String']>;
+  sql?: InputMaybe<Scalars['String']>;
+};
+
 export type UpdateThreadInput = {
   summary?: InputMaybe<Scalars['String']>;
+};
+
+export type UpdateThreadResponseInput = {
+  sql?: InputMaybe<Scalars['String']>;
 };
 
 export type UpdateViewColumnMetadataInput = {

@@ -52,16 +52,12 @@ def prompt(
     query: str,
     db_schemas: list[str],
     language: str,
+    histories: list[AskHistory],
     prompt_builder: PromptBuilder,
-    history: Optional[AskHistory] = None,
 ) -> dict:
-    if history:
-        previous_query_summaries = [
-            step.summary for step in history.steps if step.summary
-        ]
-    else:
-        previous_query_summaries = []
-
+    previous_query_summaries = (
+        [history.question for history in histories] if histories else []
+    )
     query = "\n".join(previous_query_summaries) + "\n" + query
 
     return prompt_builder.run(
@@ -73,13 +69,13 @@ def prompt(
 
 @observe(as_type="generation", capture_input=False)
 async def data_assistance(prompt: dict, generator: Any, query_id: str) -> dict:
-    return await generator(prompt=prompt.get("prompt"), query_id=query_id)
+    return await generator(
+        prompt=prompt.get("prompt"),
+        query_id=query_id,
+    )
 
 
 ## End of Pipeline
-
-
-DATA_ASSISTANCE_MODEL_KWARGS = {"response_format": {"type": "text"}}
 
 
 class DataAssistance(BasicPipeline):
@@ -92,7 +88,6 @@ class DataAssistance(BasicPipeline):
         self._components = {
             "generator": llm_provider.get_generator(
                 system_prompt=data_assistance_system_prompt,
-                generation_kwargs=DATA_ASSISTANCE_MODEL_KWARGS,
                 streaming_callback=self._streaming_callback,
             ),
             "prompt_builder": PromptBuilder(
@@ -146,7 +141,7 @@ class DataAssistance(BasicPipeline):
         db_schemas: list[str],
         language: str,
         query_id: Optional[str] = None,
-        history: Optional[AskHistory] = None,
+        histories: Optional[list[AskHistory]] = None,
     ):
         logger.info("Data Assistance pipeline is running...")
         return await self._pipe.execute(
@@ -156,7 +151,7 @@ class DataAssistance(BasicPipeline):
                 "db_schemas": db_schemas,
                 "language": language,
                 "query_id": query_id or "",
-                "history": history,
+                "histories": histories or [],
                 **self._components,
             },
         )
